@@ -1,0 +1,8 @@
+export const TIMEOUTS = {
+  SHORT: 2_000,
+  DEFAULT: 5_000,
+  MEDIUM: 10_000,
+  LONG: 30_000,
+  PAGE_LOAD: 30_000,
+  API_RESPONSE: 15_000,
+} as const;

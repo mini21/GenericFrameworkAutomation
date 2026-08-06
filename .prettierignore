@@ -1,0 +1,9 @@
+.claude
+node_modules
+dist
+reports
+test-results
+playwright-report
+allure-results
+allure-report
+package-lock.json
