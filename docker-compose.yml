@@ -1,0 +1,14 @@
+services:
+  tests:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    environment:
+      ENV: ${ENV:-qa}
+      BASE_URL: ${BASE_URL:-}
+      API_BASE_URL: ${API_BASE_URL:-}
+      API_AUTH_TOKEN: ${API_AUTH_TOKEN:-}
+      CI: 'true'
+    volumes:
+      - ./reports:/app/reports
+      - ./test-results:/app/test-results
