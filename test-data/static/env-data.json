@@ -1,0 +1,6 @@
+{
+  "dev": { "expectedWelcomeMessage": "Welcome to the DEV environment" },
+  "qa": { "expectedWelcomeMessage": "Welcome to the QA environment" },
+  "staging": { "expectedWelcomeMessage": "Welcome to the Staging environment" },
+  "prod": { "expectedWelcomeMessage": "Welcome" }
+}
