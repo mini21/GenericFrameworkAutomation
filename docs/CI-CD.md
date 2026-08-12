@@ -4,11 +4,11 @@
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs three jobs:
 
-| Job                 | Trigger                                  | What it does                                                                 |
-| -------------------- | ----------------------------------------- | ------------------------------------------------------------------------------ |
-| `lint-and-typecheck` | every push/PR to `main`                   | `npm run lint`, `npm run typecheck`                                            |
-| `smoke`               | every push/PR, after lint passes         | `@smoke`-tagged tests on `chromium` + `api` — fast PR gate                     |
-| `regression`         | push to `main`, or manual dispatch        | Full suite, one matrix job per project (`chromium`/`firefox`/`webkit`/`api`) running in parallel |
+| Job                  | Trigger                            | What it does                                                                                     |
+| -------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `lint-and-typecheck` | every push/PR to `main`            | `npm run lint`, `npm run typecheck`                                                              |
+| `smoke`              | every push/PR, after lint passes   | `@smoke`-tagged tests on `chromium` + `api` — fast PR gate                                       |
+| `regression`         | push to `main`, or manual dispatch | Full suite, one matrix job per project (`chromium`/`firefox`/`webkit`/`api`) running in parallel |
 
 Test reports (`reports/`) and failure artifacts — screenshots, videos, traces
 under `test-results/` — are uploaded as workflow artifacts on every run
@@ -47,7 +47,7 @@ declarative pipeline just calls the same npm scripts:
 ```groovy
 pipeline {
   agent {
-    docker { image 'mcr.microsoft.com/playwright:v1.48.0-jammy' }
+    docker { image 'mcr.microsoft.com/playwright:v1.62.1-jammy' } // keep in sync with docker/Dockerfile
   }
   environment {
     BASE_URL = 'https://the-internet.herokuapp.com'

@@ -57,7 +57,11 @@ export class ApiClient {
     return this.request('DELETE', url, options);
   }
 
-  private request(method: HttpMethod, url: string, options: ApiRequestOptions): Promise<APIResponse> {
+  private request(
+    method: HttpMethod,
+    url: string,
+    options: ApiRequestOptions,
+  ): Promise<APIResponse> {
     const attempt = async (): Promise<APIResponse> => {
       const start = Date.now();
       logger.info(`API ${method} ${url}`, { params: options.params, data: options.data });

@@ -6,13 +6,15 @@ import { EnvironmentManager } from '../config/environment-manager';
 import { logger } from '../logger/logger';
 
 const AUTH_DIR = path.resolve(process.cwd(), '.auth');
+
+// Not a real secret: these are the-internet.herokuapp.com's own published
+// demo credentials, printed on its /login page for anyone to use. Replace
+// with AUTH_USERNAME/AUTH_PASSWORD from config once a real target with
+// real credentials is chosen — never hardcode those.
 const VALID_USERNAME = 'tomsmith';
 const VALID_PASSWORD = 'SuperSecretPassword!';
 
-export const test = base.extend<
-  { authenticatedPage: Page },
-  { storageStatePath: string }
->({
+export const test = base.extend<{ authenticatedPage: Page }, { storageStatePath: string }>({
   storageStatePath: [
     async ({ browser }, use, workerInfo) => {
       fs.mkdirSync(AUTH_DIR, { recursive: true });
