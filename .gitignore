@@ -16,6 +16,9 @@ allure-report/
 logs/
 *.log
 
+# Cached auth sessions (worker-scoped storageState files)
+.auth/
+
 # Environment secrets (never commit real values)
 .env
 .env.local

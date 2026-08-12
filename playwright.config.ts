@@ -3,6 +3,8 @@ import { config } from './config/env.config';
 
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './src/core/global-setup.ts',
+  globalTeardown: './src/core/global-teardown.ts',
   timeout: 30_000,
   expect: {
     timeout: 5_000,
@@ -29,14 +31,17 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: ['**/api/**'],
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'firefox',
+      testIgnore: ['**/api/**'],
       use: { ...devices['Desktop Firefox'] },
     },
     {
       name: 'webkit',
+      testIgnore: ['**/api/**'],
       use: { ...devices['Desktop Safari'] },
     },
     {
