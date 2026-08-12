@@ -4,6 +4,21 @@ Known issues and their fixes, including a few discovered and fixed while
 building this framework — kept here so they don't get silently
 rediscovered.
 
+## An occasional UI test fails locally under a full parallel run, but passes standalone or on re-run
+
+**Cause**: the UI example specs hit a real third-party public practice site
+(the-internet.herokuapp.com), which occasionally responds slowly under the
+concurrent load of many local Playwright workers hitting it at once. This
+is network flakiness in the scaffolding target, not a bug in the framework
+or the test logic — locally, `retries` is `0` (see `playwright.config.ts`);
+in CI it's `2`, which absorbs this automatically.
+
+**Fix**: re-run the specific test; if it passes standalone
+(`--project=firefox tests/ui/login.spec.ts`), it's this. Once a real target
+application replaces the practice site (see `docs/ARCHITECTURE.md`), this
+category of flakiness goes away entirely. If you want retries locally too,
+pass `--retries=1` or set `CI=true` locally.
+
 ## `browserType.launch:` fails immediately (WebKit especially)
 
 **Symptom**: `npx playwright install` downloads the browser binary fine,
