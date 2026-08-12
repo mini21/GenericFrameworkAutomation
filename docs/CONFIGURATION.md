@@ -30,7 +30,8 @@ If `ENV` is omitted, `qa` is used.
 | `API_BASE_URL`                                                | Yes                     | Base URL for API calls.                                                              |
 | `LOG_LEVEL`                                                   | No (defaults to `info`) | Winston log level: `error` \| `warn` \| `info` \| `debug`.                           |
 | `AUTH_USERNAME` / `AUTH_PASSWORD`                             | Project-dependent       | Example placeholders for the auth fixture (not yet implemented).                     |
-| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | Project-dependent       | Example placeholders for the DB client (not yet implemented; driver choice pending). |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | No                      | Unused by the default in-memory `DbClient`; populate once a real driver (pg, mysql2, ...) replaces it — see `src/core/db/db-client.ts`. |
+| `API_AUTH_TOKEN`                                              | No                      | Bearer token attached to every API request when set; leave empty for public/unauthenticated APIs. |
 
 See [`.env.example`](../.env.example) for the full template.
 
