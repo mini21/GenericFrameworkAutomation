@@ -9,6 +9,14 @@ export interface AppConfig {
   baseUrl: string;
   apiBaseUrl: string;
   logLevel: string;
+  apiAuthToken?: string;
+  db: {
+    host?: string;
+    port?: number;
+    name?: string;
+    user?: string;
+    password?: string;
+  };
 }
 
 const VALID_ENVIRONMENTS: Environment[] = ['dev', 'qa', 'staging', 'prod'];
@@ -53,6 +61,14 @@ function buildConfig(): AppConfig {
     baseUrl: process.env.BASE_URL as string,
     apiBaseUrl: process.env.API_BASE_URL as string,
     logLevel: process.env.LOG_LEVEL || 'info',
+    apiAuthToken: process.env.API_AUTH_TOKEN || undefined,
+    db: {
+      host: process.env.DB_HOST || undefined,
+      port: process.env.DB_PORT ? Number(process.env.DB_PORT) : undefined,
+      name: process.env.DB_NAME || undefined,
+      user: process.env.DB_USER || undefined,
+      password: process.env.DB_PASSWORD || undefined,
+    },
   };
 }
 

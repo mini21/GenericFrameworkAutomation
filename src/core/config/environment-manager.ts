@@ -19,6 +19,14 @@ export class EnvironmentManager {
     return this.appConfig.logLevel;
   }
 
+  static get apiAuthToken(): string | undefined {
+    return this.appConfig.apiAuthToken;
+  }
+
+  static get dbConfig(): AppConfig['db'] {
+    return this.appConfig.db;
+  }
+
   static isCI(): boolean {
     return Boolean(process.env.CI);
   }
