@@ -1,8 +1,10 @@
 import { CoverageResult } from './coverage-types';
 
 /** Human-readable report — the same data as CoverageResult, formatted for a terminal/attachment. */
-export function formatTextReport(result: CoverageResult): string {
-  const header = 'GAP TEST COVERAGE';
+export function formatTextReport(result: CoverageResult, application?: string): string {
+  const header = application
+    ? `GAP TEST COVERAGE — ${application.toUpperCase()}`
+    : 'GAP TEST COVERAGE';
   const lines: string[] = [header, '='.repeat(header.length), ''];
 
   lines.push(`Requirement Coverage: ${result.coveragePercent}%`);

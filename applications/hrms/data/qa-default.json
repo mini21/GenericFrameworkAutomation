@@ -1,0 +1,23 @@
+{
+  "_note": "Fake, local-only reference-app credentials — not real secrets. See docs/PLATFORM.md.",
+  "employee": {
+    "username": "employee1",
+    "password": "Employee123!",
+    "name": "Alex Employee"
+  },
+  "employeeTwo": {
+    "username": "employee2",
+    "password": "Employee123!",
+    "name": "Sam Employee"
+  },
+  "employeeThree": {
+    "username": "employee3",
+    "password": "Employee123!",
+    "name": "Jordan Employee"
+  },
+  "manager": {
+    "username": "manager1",
+    "password": "Manager123!",
+    "name": "Morgan Manager"
+  }
+}

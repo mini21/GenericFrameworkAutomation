@@ -1,0 +1,52 @@
+{
+  "requirements": {
+    "AUTH-001": {
+      "name": "Valid employee login",
+      "priority": "Critical",
+      "feature": "Authentication",
+      "tests": ["hrms.auth.login.valid"]
+    },
+    "AUTH-002": {
+      "name": "Invalid employee login",
+      "priority": "High",
+      "feature": "Authentication",
+      "tests": ["hrms.auth.login.invalid"]
+    },
+    "LEAVE-001": {
+      "name": "Employee can apply leave",
+      "priority": "Critical",
+      "feature": "Leave",
+      "tests": ["hrms.leave.apply.valid"]
+    },
+    "LEAVE-002": {
+      "name": "Employee cannot apply overlapping leave",
+      "priority": "High",
+      "feature": "Leave",
+      "tests": ["hrms.leave.apply.overlap"]
+    },
+    "LEAVE-003": {
+      "name": "Employee can cancel pending leave",
+      "priority": "High",
+      "feature": "Leave",
+      "tests": ["hrms.leave.cancel"]
+    },
+    "LEAVE-004": {
+      "name": "Employee can view leave history",
+      "priority": "Medium",
+      "feature": "Leave",
+      "tests": ["hrms.leave.history"]
+    },
+    "APPROVAL-001": {
+      "name": "Manager can approve leave",
+      "priority": "Critical",
+      "feature": "Approval",
+      "tests": ["hrms.approval.approve"]
+    },
+    "APPROVAL-002": {
+      "name": "Manager can reject leave",
+      "priority": "High",
+      "feature": "Approval",
+      "tests": ["hrms.approval.reject"]
+    }
+  }
+}

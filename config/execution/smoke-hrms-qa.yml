@@ -1,0 +1,12 @@
+application: hrms
+environment: qa
+
+execution:
+  type: smoke
+  browsers:
+    - chromium
+  headless: true
+  workers: 1
+  retries: 0
+
+dataProfile: qa-default

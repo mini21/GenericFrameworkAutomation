@@ -1,0 +1,18 @@
+application: hrms
+environment: qa
+
+execution:
+  type: regression
+  browsers:
+    - chromium
+    - firefox
+    - webkit
+  headless: true
+  # workers: 1 is a *global* worker budget shared across every --project,
+  # not per-browser — with more than one worker, tests from different
+  # browser projects could run concurrently against the same shared
+  # in-memory HRMS backend and race each other. See docs/PLATFORM.md.
+  workers: 1
+  retries: 0
+
+dataProfile: qa-default

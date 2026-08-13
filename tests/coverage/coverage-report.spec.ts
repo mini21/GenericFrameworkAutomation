@@ -2,26 +2,48 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { test, expect } from '../../src/core/fixtures/base.fixture';
 import { loadStaticData } from '../../test-data/utils/static-data.util';
+import { getExecutionContext } from '../../src/core/execution/execution-context';
 import { discoverTests } from '../../src/core/coverage/test-discovery';
 import { calculateCoverage } from '../../src/core/coverage/coverage-calculator';
 import { formatTextReport } from '../../src/core/coverage/coverage-report';
 import { RequirementsFile } from '../../src/core/coverage/coverage-types';
 import { TAGS } from '../../src/core/constants';
 
-// Generates the requirement-coverage report from test-data/static/requirements.json
-// cross-referenced against every test Playwright can discover (see
-// docs/COVERAGE.md). Writes human + machine-readable reports to
-// reports/coverage/ and attaches both to this test's result for native
-// Allure/HTML visibility — no bespoke Allure API calls needed.
+/**
+ * Same calculator/report logic either way — only the requirements source
+ * differs: an application's own requirements.json when GAP_APPLICATION is
+ * set (by the GAP CLI), the framework-level one otherwise. No duplicated
+ * coverage logic per application.
+ */
+function loadRequirements(application: string | undefined): RequirementsFile {
+  if (!application) {
+    return loadStaticData<RequirementsFile>('requirements.json');
+  }
+  const filePath = path.resolve(
+    process.cwd(),
+    'applications',
+    application,
+    'requirements',
+    'requirements.json',
+  );
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`No requirements.json found for application "${application}" at ${filePath}`);
+  }
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as RequirementsFile;
+}
+
 test.describe(`Test Coverage ${TAGS.SMOKE}`, () => {
   test('generates and validates the requirement coverage report', async ({}, testInfo) => {
-    const { requirements } = loadStaticData<RequirementsFile>('requirements.json');
+    const { application } = getExecutionContext();
+    const { requirements } = loadRequirements(application);
     const discovered = discoverTests();
 
     const result = calculateCoverage(requirements, discovered);
-    const textReport = formatTextReport(result);
+    const textReport = formatTextReport(result, application);
 
-    const outDir = path.resolve(process.cwd(), 'reports', 'coverage');
+    const outDir = application
+      ? path.resolve(process.cwd(), 'reports', 'coverage', application)
+      : path.resolve(process.cwd(), 'reports', 'coverage');
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'coverage.txt'), textReport, 'utf-8');
     fs.writeFileSync(path.join(outDir, 'coverage.json'), JSON.stringify(result, null, 2), 'utf-8');

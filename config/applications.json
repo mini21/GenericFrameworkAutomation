@@ -1,0 +1,14 @@
+{
+  "applications": {
+    "hrms": {
+      "name": "HRMS Leave Management",
+      "baseUrl": "http://localhost:4100",
+      "apiBaseUrl": "http://localhost:4100",
+      "modules": ["auth", "leave", "approval"],
+      "authProfiles": ["employee", "manager"],
+      "defaultBrowser": "chromium",
+      "supportedBrowsers": ["chromium", "firefox", "webkit"],
+      "dataProfiles": ["qa-default"]
+    }
+  }
+}

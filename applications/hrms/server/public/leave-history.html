@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Leave History</title>
+  </head>
+  <body>
+    <h1>Leave History</h1>
+    <table id="leave-table">
+      <thead>
+        <tr>
+          <th>Start</th>
+          <th>End</th>
+          <th>Reason</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="leave-rows"></tbody>
+    </table>
+    <a href="/dashboard.html">Back to Dashboard</a>
+
+    <script>
+      async function loadRequests() {
+        const res = await fetch('/api/leave');
+        const { requests } = await res.json();
+        const tbody = document.getElementById('leave-rows');
+        tbody.innerHTML = '';
+        for (const r of requests) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${r.startDate}</td>
+            <td>${r.endDate}</td>
+            <td>${r.reason}</td>
+            <td data-testid="status-${r.id}">${r.status}</td>
+            <td>${r.status === 'pending' ? `<button data-testid="cancel-${r.id}">Cancel</button>` : ''}</td>
+          `;
+          tbody.appendChild(row);
+        }
+        tbody.querySelectorAll('button[data-testid^="cancel-"]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-testid').replace('cancel-', '');
+            await fetch(`/api/leave/${id}/cancel`, { method: 'POST' });
+            loadRequests();
+          });
+        });
+      }
+      loadRequests();
+    </script>
+  </body>
+</html>

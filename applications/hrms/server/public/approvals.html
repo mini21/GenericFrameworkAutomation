@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Manager Approvals</title>
+  </head>
+  <body>
+    <h1>Pending Approvals</h1>
+    <table id="approvals-table">
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Reason</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="approval-rows"></tbody>
+    </table>
+    <a href="/dashboard.html">Back to Dashboard</a>
+
+    <script>
+      async function loadPending() {
+        const res = await fetch('/api/leave');
+        const { requests } = await res.json();
+        const pending = requests.filter((r) => r.status === 'pending');
+        const tbody = document.getElementById('approval-rows');
+        tbody.innerHTML = '';
+        for (const r of pending) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${r.employeeId}</td>
+            <td>${r.startDate}</td>
+            <td>${r.endDate}</td>
+            <td>${r.reason}</td>
+            <td>
+              <button data-testid="approve-${r.id}">Approve</button>
+              <button data-testid="reject-${r.id}">Reject</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        }
+        tbody.querySelectorAll('button[data-testid^="approve-"]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-testid').replace('approve-', '');
+            await fetch(`/api/leave/${id}/approve`, { method: 'POST' });
+            loadPending();
+          });
+        });
+        tbody.querySelectorAll('button[data-testid^="reject-"]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-testid').replace('reject-', '');
+            await fetch(`/api/leave/${id}/reject`, { method: 'POST' });
+            loadPending();
+          });
+        });
+      }
+      loadPending();
+    </script>
+  </body>
+</html>

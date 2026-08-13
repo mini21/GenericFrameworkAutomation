@@ -1,29 +1,28 @@
 import { defineConfig, devices } from '@playwright/test';
 import { config } from './config/env.config';
 
-// API specs are excluded from every browser project — they use the `api`
-// fixture, never `page`, and have their own dedicated `api` project below.
-// Running them per-browser would triple their runtime for no added
-// coverage.
-const API_SPECS = ['**/api/**'];
+// testDir is the repo root (not './tests') specifically so applications'
+// own test suites — applications/<app>/tests/** — are discovered
+// automatically via the globs below. Onboarding a new application never
+// requires editing this file: it just needs to exist under that path.
+const UI_TEST_MATCH = [
+  'tests/ui/**/*.spec.ts',
+  'tests/e2e/**/*.spec.ts',
+  'tests/locator/**/*.spec.ts',
+  'applications/*/tests/ui/**/*.spec.ts',
+  'applications/*/tests/e2e/**/*.spec.ts',
+];
 
-// Coverage report generation shells out to a separate `playwright test
-// --list` invocation (see src/core/coverage/test-discovery.ts) — no
-// browser involved, and running it 3x per browser would triple that
-// subprocess cost for no benefit. Has its own dedicated project below.
-const COVERAGE_SPECS = ['**/coverage/**'];
-
-// db-client.spec.ts only exercises the `db` fixture too (no browser), but
-// unlike API specs it has no dedicated non-browser project of its own — so
-// it needs exactly one browser project to actually run it. It's excluded
-// from firefox/webkit (redundant) but kept on chromium (its sole runner).
-// This list doesn't self-enforce: a new non-browser spec added under
-// tests/e2e/ needs a similar decision made explicitly, or it'll either run
-// 3x redundantly or (if blanket-excluded from all three) not run at all.
+// db-client.spec.ts only exercises the `db` fixture (no browser) but has
+// no dedicated non-browser project of its own — kept on chromium only,
+// excluded from firefox/webkit to avoid running it 3x redundantly.
 const DB_ONLY_SPECS = ['**/db-client.spec.ts'];
 
+const API_TEST_MATCH = ['tests/api/**/*.spec.ts', 'applications/*/tests/api/**/*.spec.ts'];
+const COVERAGE_TEST_MATCH = ['tests/coverage/**/*.spec.ts'];
+
 export default defineConfig({
-  testDir: './tests',
+  testDir: '.',
   globalSetup: './src/core/global-setup.ts',
   globalTeardown: './src/core/global-teardown.ts',
   timeout: 30_000,
@@ -42,6 +41,17 @@ export default defineConfig({
     ['list'],
     ['./src/core/reporter/summary-reporter.ts'],
   ],
+  // Native Playwright app-under-test lifecycle management — no custom
+  // process orchestration. Idempotent locally (reuseExistingServer skips
+  // startup if already running); every run pays the HRMS build+boot cost
+  // once, even one that only touches the framework's own generic examples.
+  // See docs/PLATFORM.md for why this tradeoff was accepted.
+  webServer: {
+    command: 'npm run hrms:start',
+    url: 'http://localhost:4100/login.html',
+    reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
+  },
   use: {
     baseURL: config.baseUrl,
     trace: 'retain-on-failure',
@@ -52,27 +62,29 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: [...API_SPECS, ...COVERAGE_SPECS],
+      testMatch: UI_TEST_MATCH,
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'firefox',
-      testIgnore: [...API_SPECS, ...DB_ONLY_SPECS, ...COVERAGE_SPECS],
+      testMatch: UI_TEST_MATCH,
+      testIgnore: DB_ONLY_SPECS,
       use: { ...devices['Desktop Firefox'] },
     },
     {
       name: 'webkit',
-      testIgnore: [...API_SPECS, ...DB_ONLY_SPECS, ...COVERAGE_SPECS],
+      testMatch: UI_TEST_MATCH,
+      testIgnore: DB_ONLY_SPECS,
       use: { ...devices['Desktop Safari'] },
     },
     {
       name: 'api',
-      testDir: './tests/api',
+      testMatch: API_TEST_MATCH,
       use: {},
     },
     {
       name: 'coverage',
-      testDir: './tests/coverage',
+      testMatch: COVERAGE_TEST_MATCH,
       use: {},
     },
   ],

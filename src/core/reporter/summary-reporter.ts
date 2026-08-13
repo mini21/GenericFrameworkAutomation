@@ -47,7 +47,13 @@ export default class SummaryReporter implements Reporter {
   }
 
   private logCoverageIfAvailable(): void {
-    const coveragePath = path.resolve(process.cwd(), 'reports', 'coverage', 'coverage.json');
+    // Application-scoped report (reports/coverage/<app>/coverage.json) takes
+    // precedence when GAP_APPLICATION is set — falls back to the
+    // framework-level report (reports/coverage/coverage.json) otherwise.
+    const application = process.env.GAP_APPLICATION;
+    const coveragePath = application
+      ? path.resolve(process.cwd(), 'reports', 'coverage', application, 'coverage.json')
+      : path.resolve(process.cwd(), 'reports', 'coverage', 'coverage.json');
     if (!fs.existsSync(coveragePath)) return;
 
     try {
@@ -59,6 +65,7 @@ export default class SummaryReporter implements Reporter {
       // by the `coverage` project (npm run coverage:report), so if this
       // run didn't include that project, the numbers are from an earlier run.
       logger.info('Requirement coverage (NOT execution pass rate)', {
+        application: application ?? '(framework-level)',
         requirementCoverage: `${coverage.coveragePercent}% (${coverage.coveredRequirements}/${coverage.totalRequirements})`,
         criticalRequirementCoverage: `${coverage.criticalCoveragePercent}% (${coverage.criticalCovered}/${coverage.criticalTotal})`,
         uncoveredRequirements: coverage.uncoveredRequirements,

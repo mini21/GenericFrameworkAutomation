@@ -1,0 +1,113 @@
+name: GAP Manual Run
+
+# QA-engineer-facing execution front-end. All business logic lives in the
+# GAP CLI (cli/gap-test.ts -> src/core/execution/execution-resolver.ts) —
+# this workflow only translates dropdown inputs into CLI flags and never
+# makes an execution decision itself.
+on:
+  workflow_dispatch:
+    inputs:
+      application:
+        description: 'Application to test'
+        required: true
+        type: choice
+        options:
+          - hrms
+        default: hrms
+      environment:
+        description: 'Environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - staging
+          - prod
+        default: qa
+      module:
+        description: 'Module (optional — blank runs every module)'
+        required: false
+        type: string
+      testType:
+        description: 'Test type'
+        required: true
+        type: choice
+        options:
+          - smoke
+          - regression
+          - sanity
+          - functional
+        default: smoke
+      browser:
+        description: 'Browser'
+        required: true
+        type: choice
+        options:
+          - chromium
+          - firefox
+          - webkit
+          - all
+        default: chromium
+      headless:
+        description: 'Headless'
+        required: true
+        type: boolean
+        default: true
+      workers:
+        description: 'Workers (optional — CLI/application default if blank)'
+        required: false
+        type: string
+      tags:
+        description: 'Additional required tags, comma-separated (optional)'
+        required: false
+        type: string
+      manifest:
+        description: 'Execution manifest path, e.g. config/execution/smoke-hrms-qa.yml (optional)'
+        required: false
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browser(s)
+        run: |
+          if [ "${{ inputs.browser }}" = "all" ]; then
+            npx playwright install --with-deps chromium firefox webkit
+          else
+            npx playwright install --with-deps ${{ inputs.browser }}
+          fi
+
+      - name: Run GAP CLI
+        run: |
+          ARGS="--application=${{ inputs.application }} --environment=${{ inputs.environment }} --type=${{ inputs.testType }} --browser=${{ inputs.browser }} --headless=${{ inputs.headless }}"
+          if [ -n "${{ inputs.module }}" ]; then ARGS="$ARGS --module=${{ inputs.module }}"; fi
+          if [ -n "${{ inputs.workers }}" ]; then ARGS="$ARGS --workers=${{ inputs.workers }}"; fi
+          if [ -n "${{ inputs.tags }}" ]; then ARGS="$ARGS --tags=${{ inputs.tags }}"; fi
+          if [ -n "${{ inputs.manifest }}" ]; then ARGS="$ARGS --manifest=${{ inputs.manifest }}"; fi
+          npm run gap:test -- $ARGS
+
+      - name: Generate coverage report
+        if: always()
+        continue-on-error: true
+        run: GAP_APPLICATION=${{ inputs.application }} npm run coverage:report
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gap-reports-${{ inputs.application }}-${{ inputs.environment }}-${{ inputs.testType }}
+          path: |
+            reports/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
