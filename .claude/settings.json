@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prettier --check *)",
+      "Bash(npx eslint .)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx playwright test --list*)",
+      "Bash(claude mcp list*)"
+    ]
+  }
+}

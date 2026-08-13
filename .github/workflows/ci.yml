@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # Public-API scaffolding targets — no real credentials required. Replace
+  # with the real target's BASE_URL/API_BASE_URL once one is chosen, wired
+  # here as repository/environment variables (not secrets, since these are
+  # plain URLs). CI-level env vars take precedence over the committed
+  # config/environments/.env.qa placeholders (see config/env.config.ts).
+  BASE_URL: https://the-internet.herokuapp.com
+  API_BASE_URL: https://jsonplaceholder.typicode.com
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+
+  # Fast gate on every push/PR: chromium + api only, @smoke-tagged tests.
+  smoke:
+    needs: lint-and-typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run smoke tests
+        run: npx playwright test --grep @smoke --project=chromium --project=api
+      - name: Upload smoke test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-reports
+          path: |
+            reports/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Full regression, one job per project running in parallel (CI-level
+  # parallelism, on top of Playwright's own worker parallelism within each
+  # job). Only on main or manual dispatch — smoke covers every PR already.
+  regression:
+    needs: smoke
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit, api]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browser (${{ matrix.project }})
+        if: matrix.project != 'api'
+        run: npx playwright install --with-deps ${{ matrix.project }}
+      - name: Run regression suite (${{ matrix.project }})
+        run: npx playwright test --project=${{ matrix.project }}
+      - name: Upload regression reports (${{ matrix.project }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-reports-${{ matrix.project }}
+          path: |
+            reports/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -1,0 +1,56 @@
+{
+  "name": "test-automation-framework",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generic enterprise-grade Test Automation Framework built with Playwright and TypeScript. Supports UI automation, API automation, cross-browser execution, multi-environment configuration, and parallel/tagged test runs.",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "cross-env ENV=qa playwright test",
+    "test:ui": "cross-env ENV=qa playwright test tests/ui",
+    "test:api": "cross-env ENV=qa playwright test tests/api",
+    "test:smoke": "cross-env ENV=qa playwright test --grep @smoke",
+    "test:regression": "cross-env ENV=qa playwright test --grep @regression",
+    "test:headed": "cross-env ENV=qa playwright test --headed",
+    "test:debug": "cross-env ENV=qa playwright test --debug",
+    "test:dev": "cross-env ENV=dev playwright test",
+    "test:staging": "cross-env ENV=staging playwright test",
+    "test:prod": "cross-env ENV=prod playwright test",
+    "report:show": "playwright show-report reports/html-report",
+    "report:allure:generate": "allure generate reports/allure-results --clean -o reports/allure-report",
+    "report:allure:open": "allure open reports/allure-report",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "prepare": "husky || exit 0"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^9.0.0",
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.7.0",
+    "allure-playwright": "^3.0.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "eslint": "^9.11.0",
+    "eslint-config-prettier": "^9.1.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "playwright": "^1.48.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.7.0",
+    "winston": "^3.14.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}
