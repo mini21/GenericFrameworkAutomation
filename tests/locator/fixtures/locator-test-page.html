@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Locator Intelligence test fixture</title>
+  </head>
+  <body>
+    <!-- role: accessible name comes from the button's text content -->
+    <button>Login</button>
+
+    <!-- realistic labeled text input, for the end-to-end ui.fill() test
+       (resolves via role, since role's accessible-name computation
+       legitimately incorporates the associated label — same as any real
+       labeled form field would) -->
+    <label for="email-input">Email</label>
+    <input id="email-input" type="text" />
+
+    <!-- label, isolated from role: a <select>'s implicit role (combobox) is
+       not one this resolver guesses for click/fill, so only getByLabel
+       can find it via the <label for> association -->
+    <label for="country-select">Country</label>
+    <select id="country-select">
+      <option>USA</option>
+    </select>
+
+    <!-- placeholder, isolated from role: a plain element carrying a
+       `placeholder` attribute has no implicit interactive role at all, so
+       only getByPlaceholder (a plain [placeholder=...] match) finds it -->
+    <div
+      placeholder="Search"
+      tabindex="0"
+      style="width: 100px; height: 20px; border: 1px solid #000"
+    ></div>
+
+    <!-- plain text, not interactive -->
+    <span>Welcome back</span>
+
+    <!-- testid, isolated from every other strategy: no matching text/role/
+       label/placeholder at all. Explicit size so it has a real layout box
+       (an empty, unsized div is correctly treated as not visible). -->
+    <div data-testid="profile" style="width: 24px; height: 24px; background: #ccc"></div>
+
+    <!-- ambiguous: two elements with the identical accessible name -->
+    <button>Duplicate</button>
+    <button>Duplicate</button>
+
+    <!-- only reachable via an explicit CSS fallback -->
+    <button class="only-css-reachable">CSS Only</button>
+
+    <!-- only reachable via an explicit XPath fallback -->
+    <button class="only-xpath-reachable">XPath Only</button>
+
+    <!-- hidden: matches by role but must be rejected as not usable -->
+    <button style="display: none">Hidden Action</button>
+
+    <!-- for the healing scenario: no data-testid="legacy-login-button" exists
+       here (simulating a renamed/removed attribute), but the button IS
+       reachable via role+name, matching the spec's worked example -->
+    <button>Healing Target</button>
+
+    <!-- disabled: matches uniquely but must be rejected as not usable for click -->
+    <button disabled>Disabled Action</button>
+  </body>
+</html>

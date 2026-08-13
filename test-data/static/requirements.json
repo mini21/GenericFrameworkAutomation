@@ -1,0 +1,70 @@
+{
+  "requirements": {
+    "AUTH-001": {
+      "name": "User Login",
+      "priority": "Critical",
+      "feature": "Authentication",
+      "tests": ["auth.login.valid", "auth.login.invalid"]
+    },
+    "AUTH-002": {
+      "name": "Access Secure Area After Login",
+      "priority": "Critical",
+      "feature": "Authentication",
+      "tests": ["auth.secure-area"]
+    },
+    "POSTS-001": {
+      "name": "List Posts",
+      "priority": "High",
+      "feature": "Posts API",
+      "tests": ["posts.list"]
+    },
+    "POSTS-002": {
+      "name": "Create Post",
+      "priority": "High",
+      "feature": "Posts API",
+      "tests": ["posts.create"]
+    },
+    "POSTS-003": {
+      "name": "Fetch Post By Id",
+      "priority": "Medium",
+      "feature": "Posts API",
+      "tests": ["posts.get-by-id"]
+    },
+    "POSTS-004": {
+      "name": "Handle Nonexistent Post",
+      "priority": "Medium",
+      "feature": "Posts API",
+      "tests": ["posts.not-found"]
+    },
+    "FILE-001": {
+      "name": "Upload File",
+      "priority": "Medium",
+      "feature": "File Transfer",
+      "tests": ["file.upload"]
+    },
+    "FILE-002": {
+      "name": "Download File",
+      "priority": "Medium",
+      "feature": "File Transfer",
+      "tests": ["file.download"]
+    },
+    "NETWORK-001": {
+      "name": "Mock API Responses In The Browser",
+      "priority": "Low",
+      "feature": "Network Mocking",
+      "tests": ["network.mocking"]
+    },
+    "DB-001": {
+      "name": "Insert And Read Back Test Data",
+      "priority": "Medium",
+      "feature": "Database",
+      "tests": ["db.insert-read"]
+    },
+    "PAYMENTS-001": {
+      "name": "Example Uncovered Requirement (demo only)",
+      "priority": "High",
+      "feature": "Payments",
+      "tests": ["payments.checkout.valid"]
+    }
+  }
+}

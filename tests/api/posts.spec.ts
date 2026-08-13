@@ -7,7 +7,7 @@ import { expectStatus, assertSchema } from '../../src/core/http/response-asserti
 // schema validation, error handling) against a public test API. Replace
 // with specs for the real target API once one is chosen.
 test.describe('Posts API', () => {
-  test(`lists posts ${TAGS.SMOKE}`, async ({ api }) => {
+  test(`lists posts ${TAGS.SMOKE}`, { tag: ['@posts.list'] }, async ({ api }) => {
     const postsApi = new PostsApi(api);
 
     const response = await postsApi.list();
@@ -19,18 +19,22 @@ test.describe('Posts API', () => {
     assertSchema(posts[0], { id: 'number', userId: 'number', title: 'string', body: 'string' });
   });
 
-  test(`fetches a single post by id, with retry enabled ${TAGS.SMOKE}`, async ({ api }) => {
-    const postsApi = new PostsApi(api);
+  test(
+    `fetches a single post by id, with retry enabled ${TAGS.SMOKE}`,
+    { tag: ['@posts.get-by-id'] },
+    async ({ api }) => {
+      const postsApi = new PostsApi(api);
 
-    const response = await postsApi.getById(1, { retries: 2 });
-    await expectStatus(response, 200);
+      const response = await postsApi.getById(1, { retries: 2 });
+      await expectStatus(response, 200);
 
-    const post = await response.json();
-    assertSchema(post, { id: 'number', userId: 'number', title: 'string', body: 'string' });
-    expect(post.id).toBe(1);
-  });
+      const post = await response.json();
+      assertSchema(post, { id: 'number', userId: 'number', title: 'string', body: 'string' });
+      expect(post.id).toBe(1);
+    },
+  );
 
-  test(`creates a post ${TAGS.REGRESSION}`, async ({ api }) => {
+  test(`creates a post ${TAGS.REGRESSION}`, { tag: ['@posts.create'] }, async ({ api }) => {
     const postsApi = new PostsApi(api);
 
     const response = await postsApi.create({
@@ -44,10 +48,14 @@ test.describe('Posts API', () => {
     expect(created.title).toBe('Framework smoke test');
   });
 
-  test(`returns 404 for a nonexistent post ${TAGS.REGRESSION}`, async ({ api }) => {
-    const postsApi = new PostsApi(api);
+  test(
+    `returns 404 for a nonexistent post ${TAGS.REGRESSION}`,
+    { tag: ['@posts.not-found'] },
+    async ({ api }) => {
+      const postsApi = new PostsApi(api);
 
-    const response = await postsApi.getById(999_999);
-    expect(response.status()).toBe(404);
-  });
+      const response = await postsApi.getById(999_999);
+      expect(response.status()).toBe(404);
+    },
+  );
 });

@@ -127,6 +127,27 @@ The default `DbClient` is an in-memory example (see
 `docs/ARCHITECTURE.md`) — swap it for a real driver behind the same
 interface once a target database exists.
 
+## Using Locator Intelligence (the `ui` fixture)
+
+For elements you don't have (or don't want) a page-object locator for,
+`ui.click(name)`/`ui.fill(name, value)` resolves through Playwright's own
+recommended locators (role → label → placeholder → text → testId → css →
+xpath) automatically:
+
+```ts
+test('logs in', async ({ ui }) => {
+  await ui.fill('Username', 'john');
+  await ui.fill('Password', 'secret');
+  await ui.click('Login');
+});
+```
+
+Full resolution order, confidence levels, self-healing, and reporting
+behavior: [docs/LOCATOR-INTELLIGENCE.md](./LOCATOR-INTELLIGENCE.md). This
+is a separate, independent fixture from the page-object `loginPage`/etc.
+fixtures above — use whichever fits: page objects for stable, reused flows;
+`ui` for one-off interactions or elements not worth a dedicated locator.
+
 ## Test data
 
 - Static reference data: `test-data/static/*.json`, loaded via `loadStaticData<T>('file.json')`.
@@ -151,6 +172,27 @@ npm run test:smoke        # equivalent npm script
 npm run test:regression
 ```
 
+### Stable test IDs for requirement coverage
+
+Separate from the `@smoke`/`@regression` title tags above, a test that
+automates a tracked requirement gets a structured, title-independent `tag`
+via Playwright's native option:
+
+```ts
+test(
+  'logs in with valid credentials @smoke',
+  { tag: ['@auth.login.valid'] },
+  async ({ loginPage }) => {
+    /* ... */
+  },
+);
+```
+
+This is purely additive metadata (doesn't change what the test does), and
+is what `test-data/static/requirements.json` maps against. See
+[docs/COVERAGE.md](./COVERAGE.md) for the full model — when to add one,
+how coverage is calculated, and how it differs from pass rate.
+
 ## Running tests
 
 ```bash
@@ -165,6 +207,7 @@ ENV=staging npm test            # against a different environment
 npx playwright test --project=chromium tests/ui/login.spec.ts   # one file, one browser
 ```
 
-Projects: `chromium`, `firefox`, `webkit` (UI/e2e specs only — API specs
-are excluded via `testIgnore`) and `api` (API specs only, no browser
-launched). See `playwright.config.ts`.
+Projects: `chromium`, `firefox`, `webkit` (UI/e2e/locator specs — API and
+coverage specs are excluded via `testIgnore`), `api` (API specs only, no
+browser launched), and `coverage` (the coverage report generator, no
+browser). See `playwright.config.ts`.
