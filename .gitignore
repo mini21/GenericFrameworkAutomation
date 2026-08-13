@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Playwright / test artifacts
+reports/
+test-results/
+playwright-report/
+playwright/.cache/
+allure-results/
+allure-report/
+
+# Logs
+logs/
+*.log
+
+# Cached auth sessions (worker-scoped storageState files)
+.auth/
+
+# Environment secrets (never commit real values)
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
