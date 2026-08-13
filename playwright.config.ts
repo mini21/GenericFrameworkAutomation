@@ -7,6 +7,12 @@ import { config } from './config/env.config';
 // coverage.
 const API_SPECS = ['**/api/**'];
 
+// Coverage report generation shells out to a separate `playwright test
+// --list` invocation (see src/core/coverage/test-discovery.ts) — no
+// browser involved, and running it 3x per browser would triple that
+// subprocess cost for no benefit. Has its own dedicated project below.
+const COVERAGE_SPECS = ['**/coverage/**'];
+
 // db-client.spec.ts only exercises the `db` fixture too (no browser), but
 // unlike API specs it has no dedicated non-browser project of its own — so
 // it needs exactly one browser project to actually run it. It's excluded
@@ -46,22 +52,27 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: API_SPECS,
+      testIgnore: [...API_SPECS, ...COVERAGE_SPECS],
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'firefox',
-      testIgnore: [...API_SPECS, ...DB_ONLY_SPECS],
+      testIgnore: [...API_SPECS, ...DB_ONLY_SPECS, ...COVERAGE_SPECS],
       use: { ...devices['Desktop Firefox'] },
     },
     {
       name: 'webkit',
-      testIgnore: [...API_SPECS, ...DB_ONLY_SPECS],
+      testIgnore: [...API_SPECS, ...DB_ONLY_SPECS, ...COVERAGE_SPECS],
       use: { ...devices['Desktop Safari'] },
     },
     {
       name: 'api',
       testDir: './tests/api',
+      use: {},
+    },
+    {
+      name: 'coverage',
+      testDir: './tests/coverage',
       use: {},
     },
   ],
