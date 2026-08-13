@@ -7,12 +7,15 @@ import { logger } from '../logger/logger';
 
 const AUTH_DIR = path.resolve(process.cwd(), '.auth');
 
-// Not a real secret: these are the-internet.herokuapp.com's own published
-// demo credentials, printed on its /login page for anyone to use. Replace
-// with AUTH_USERNAME/AUTH_PASSWORD from config once a real target with
-// real credentials is chosen — never hardcode those.
-const VALID_USERNAME = 'tomsmith';
-const VALID_PASSWORD = 'SuperSecretPassword!';
+// Fall back to the-internet.herokuapp.com's own published demo credentials
+// (printed on its /login page for anyone to use — not a real secret) only
+// when AUTH_USERNAME/AUTH_PASSWORD aren't configured. Once a real target
+// with real credentials is chosen, set those env vars and this fixture
+// uses them automatically — no code change needed.
+const DEMO_USERNAME = 'tomsmith';
+const DEMO_PASSWORD = 'SuperSecretPassword!';
+const USERNAME = EnvironmentManager.authUsername ?? DEMO_USERNAME;
+const PASSWORD = EnvironmentManager.authPassword ?? DEMO_PASSWORD;
 
 export const test = base.extend<{ authenticatedPage: Page }, { storageStatePath: string }>({
   storageStatePath: [
@@ -24,7 +27,7 @@ export const test = base.extend<{ authenticatedPage: Page }, { storageStatePath:
       const page = await context.newPage();
       const loginPage = new LoginPage(page);
       await loginPage.open();
-      await loginPage.login(VALID_USERNAME, VALID_PASSWORD);
+      await loginPage.login(USERNAME, PASSWORD);
       await page.waitForURL('**/secure');
       await context.storageState({ path: statePath });
       await context.close();

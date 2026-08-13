@@ -37,7 +37,8 @@ registration → spec).
 
 1. `config/environments/.env.<name>` with at least `BASE_URL` and `API_BASE_URL`.
 2. Add `<name>` to `VALID_ENVIRONMENTS` in `config/env.config.ts`.
-3. Run with `ENV=<name> npm test`.
+3. If any spec calls `getEnvData()`, add a matching entry to `test-data/static/env-data.json` — it throws a clear error if one's missing, but you still need to add it.
+4. Run with `ENV=<name> npm test`.
 
 ## Commit and PR conventions
 

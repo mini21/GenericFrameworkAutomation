@@ -68,7 +68,7 @@ needs to change.
 1. Invocation: `ENV=qa npm run test:ui -- --grep @smoke`
 2. `playwright.config.ts` imports `config/env.config.ts`, which loads and validates the matching `.env.<env>` file, then registers `global-setup.ts`/`global-teardown.ts`.
 3. Playwright spawns workers per the configured `projects` (browser matrix + `api` project) and `workers` setting.
-4. Fixtures resolve per test: requesting `{ loginPage }` triggers browser context + page object creation; `{ api }` gets a worker-scoped `APIRequestContext` wrapped in `ApiClient`; `{ db }` gets a worker-scoped `DbClient`; `{ authenticatedPage }` reuses a worker-scoped cached login session.
+4. Fixtures resolve per test: requesting `{ loginPage }` triggers browser context + page object creation; `{ api }` gets a worker-scoped `APIRequestContext` wrapped in `ApiClient`; `{ db }` gets a fresh test-scoped `DbClient`; `{ authenticatedPage }` reuses a worker-scoped cached login session.
 5. Test body calls only into page/API/DB objects — never Playwright APIs or `core/` internals directly (network mocking via `page.route` and file upload/download via native Playwright APIs are the exceptions, used directly in specs since they're one-off native capabilities, not domain objects).
 6. Fixture teardown runs automatically (context close, DB disconnect) — no manual `afterEach`.
 7. Reporters (HTML, JUnit, Allure, SummaryReporter) write results during the run; failures auto-attach screenshots, traces, video, and correlated logs (`logs/run.log`).
@@ -76,7 +76,7 @@ needs to change.
 ## Fixture Strategy
 
 - Fixtures are split by concern (`logger`, `api`, `db`, `ui`, `auth`) and merged once in `base.fixture.ts` via `mergeTests` so specs always import a single `test` object.
-- Scoping discipline: expensive/shareable resources (`apiRequestContext`, `db`, the cached auth `storageStatePath`) are **worker**-scoped; anything requiring isolation (browser context/page, page objects) is **test**-scoped.
+- Scoping discipline: expensive/shareable resources (`apiRequestContext`, the cached auth `storageStatePath`) are **worker**-scoped; anything requiring isolation (browser context/page, page objects, `db`) is **test**-scoped. `db` is test-scoped rather than worker-scoped specifically because `InMemoryDbClient` has no expensive connection to amortize — sharing it across tests in a worker would leak data between them for no performance benefit.
 - Cross-cutting concerns (start/end/failure logging) are auto-fixtures — no per-spec opt-in required.
 
 ## Test Data Strategy

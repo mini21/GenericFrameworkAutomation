@@ -4,11 +4,17 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     environment:
-      ENV: ${ENV:-qa}
-      BASE_URL: ${BASE_URL:-}
-      API_BASE_URL: ${API_BASE_URL:-}
-      API_AUTH_TOKEN: ${API_AUTH_TOKEN:-}
-      CI: 'true'
+      - ENV=${ENV:-qa}
+      # Bare name (no =value): pass through from the host shell only if set
+      # there. Setting these to an empty-string default would permanently
+      # block config/env.config.ts's dotenv fallback (dotenv never
+      # overrides an already-present key, even an empty one), breaking the
+      # committed .env.<env> defaults for anyone who runs `docker compose
+      # run` without first exporting these.
+      - BASE_URL
+      - API_BASE_URL
+      - API_AUTH_TOKEN
+      - CI=true
     volumes:
       - ./reports:/app/reports
       - ./test-results:/app/test-results

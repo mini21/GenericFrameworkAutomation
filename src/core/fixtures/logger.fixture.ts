@@ -7,7 +7,11 @@ export const test = base.extend<{ autoLogger: void }>({
       logger.info(`Starting test: ${testInfo.title}`);
       await use();
 
-      if (testInfo.status !== testInfo.expectedStatus) {
+      if (testInfo.status === 'interrupted') {
+        // Worker crash, Ctrl-C, or --max-failures cutoff — the test never
+        // ran to a failing assertion, so this isn't a real failure.
+        logger.warn(`Test interrupted: ${testInfo.title}`, { status: testInfo.status });
+      } else if (testInfo.status !== testInfo.expectedStatus) {
         logger.error(`Test failed: ${testInfo.title}`, {
           status: testInfo.status,
           error: testInfo.error?.message,

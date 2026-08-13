@@ -10,6 +10,8 @@ export interface AppConfig {
   apiBaseUrl: string;
   logLevel: string;
   apiAuthToken?: string;
+  authUsername?: string;
+  authPassword?: string;
   db: {
     host?: string;
     port?: number;
@@ -51,6 +53,15 @@ function validateRequiredKeys(): void {
   }
 }
 
+function parsePort(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    throw new Error(`Invalid DB_PORT "${value}": expected an integer.`);
+  }
+  return parsed;
+}
+
 function buildConfig(): AppConfig {
   const env = resolveEnvironment();
   loadEnvFile(env);
@@ -62,9 +73,11 @@ function buildConfig(): AppConfig {
     apiBaseUrl: process.env.API_BASE_URL as string,
     logLevel: process.env.LOG_LEVEL || 'info',
     apiAuthToken: process.env.API_AUTH_TOKEN || undefined,
+    authUsername: process.env.AUTH_USERNAME || undefined,
+    authPassword: process.env.AUTH_PASSWORD || undefined,
     db: {
       host: process.env.DB_HOST || undefined,
-      port: process.env.DB_PORT ? Number(process.env.DB_PORT) : undefined,
+      port: parsePort(process.env.DB_PORT),
       name: process.env.DB_NAME || undefined,
       user: process.env.DB_USER || undefined,
       password: process.env.DB_PASSWORD || undefined,

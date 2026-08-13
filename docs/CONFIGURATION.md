@@ -29,7 +29,7 @@ If `ENV` is omitted, `qa` is used.
 | `BASE_URL`                                                    | Yes                     | Base URL for UI navigation (`playwright.config.ts` → `use.baseURL`).                                                                    |
 | `API_BASE_URL`                                                | Yes                     | Base URL for API calls.                                                                                                                 |
 | `LOG_LEVEL`                                                   | No (defaults to `info`) | Winston log level: `error` \| `warn` \| `info` \| `debug`.                                                                              |
-| `AUTH_USERNAME` / `AUTH_PASSWORD`                             | Project-dependent       | Example placeholders for the auth fixture (not yet implemented).                                                                        |
+| `AUTH_USERNAME` / `AUTH_PASSWORD`                             | No                      | Used by `src/core/fixtures/auth.fixture.ts` when set; falls back to the-internet.herokuapp.com's public demo credentials otherwise.     |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | No                      | Unused by the default in-memory `DbClient`; populate once a real driver (pg, mysql2, ...) replaces it — see `src/core/db/db-client.ts`. |
 | `API_AUTH_TOKEN`                                              | No                      | Bearer token attached to every API request when set; leave empty for public/unauthenticated APIs.                                       |
 

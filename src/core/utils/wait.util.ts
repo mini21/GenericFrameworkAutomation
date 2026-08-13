@@ -3,6 +3,7 @@ export function sleep(ms: number): Promise<void> {
 }
 
 export interface RetryOptions {
+  /** Number of retries *after* the first attempt. `retries: 1` means 2 total attempts. */
   retries?: number;
   delayMs?: number;
 }
@@ -11,7 +12,7 @@ export async function retry<T>(fn: () => Promise<T>, options: RetryOptions = {})
   const { retries = 3, delayMs = 1_000 } = options;
   let lastError: unknown;
 
-  for (let attempt = 1; attempt <= retries; attempt++) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn();
     } catch (error) {

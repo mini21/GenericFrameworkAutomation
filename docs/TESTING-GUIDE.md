@@ -111,8 +111,9 @@ worked examples in `tests/api/posts.spec.ts`.
 
 ## Using the DB fixture
 
-`db` (from `src/core/fixtures/db.fixture.ts`) is worker-scoped and
-connected/disconnected automatically:
+`db` (from `src/core/fixtures/db.fixture.ts`) is test-scoped — a fresh
+`DbClient` per test, connected/disconnected automatically, so one test's
+data never leaks into another's:
 
 ```ts
 test('reads back inserted data', async ({ db }) => {

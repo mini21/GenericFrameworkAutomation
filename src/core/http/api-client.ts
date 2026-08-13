@@ -9,7 +9,7 @@ export interface ApiRequestOptions {
   params?: Record<string, string | number | boolean>;
   data?: unknown;
   failOnStatusCode?: boolean;
-  /** Retries on 5xx responses or network errors. Omit/0 to disable. */
+  /** Retries (after the first attempt) on 5xx responses or network errors. Omit/0 to disable. */
   retries?: number;
   retryDelayMs?: number;
 }

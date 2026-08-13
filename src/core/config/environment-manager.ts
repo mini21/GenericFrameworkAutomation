@@ -23,6 +23,14 @@ export class EnvironmentManager {
     return this.appConfig.apiAuthToken;
   }
 
+  static get authUsername(): string | undefined {
+    return this.appConfig.authUsername;
+  }
+
+  static get authPassword(): string | undefined {
+    return this.appConfig.authPassword;
+  }
+
   static get dbConfig(): AppConfig['db'] {
     return this.appConfig.db;
   }
