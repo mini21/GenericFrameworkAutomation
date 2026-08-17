@@ -8,6 +8,8 @@
     "src/core/config/**/*.ts",
     "src/core/execution/**/*.ts",
     "src/core/intent/**/*.ts",
+    "src/core/locator/**/*.ts",
+    "src/core/discovery/**/*.ts",
     "config/**/*.ts",
     "applications/*/server/**/*.ts"
   ],

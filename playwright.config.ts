@@ -9,14 +9,16 @@ const UI_TEST_MATCH = [
   'tests/ui/**/*.spec.ts',
   'tests/e2e/**/*.spec.ts',
   'tests/locator/**/*.spec.ts',
+  'tests/discovery/**/*.spec.ts',
   'applications/*/tests/ui/**/*.spec.ts',
   'applications/*/tests/e2e/**/*.spec.ts',
 ];
 
-// db-client.spec.ts only exercises the `db` fixture (no browser) but has
-// no dedicated non-browser project of its own — kept on chromium only,
-// excluded from firefox/webkit to avoid running it 3x redundantly.
-const DB_ONLY_SPECS = ['**/db-client.spec.ts'];
+// Specs that only exercise a fixture/pure function (no browser fixture
+// requested) but have no dedicated non-browser project of their own —
+// kept on chromium only, excluded from firefox/webkit to avoid running
+// them 3x redundantly.
+const CHROMIUM_ONLY_SPECS = ['**/db-client.spec.ts', '**/application-map-writer.spec.ts'];
 
 const API_TEST_MATCH = ['tests/api/**/*.spec.ts', 'applications/*/tests/api/**/*.spec.ts'];
 const COVERAGE_TEST_MATCH = ['tests/coverage/**/*.spec.ts'];
@@ -69,13 +71,13 @@ export default defineConfig({
     {
       name: 'firefox',
       testMatch: UI_TEST_MATCH,
-      testIgnore: DB_ONLY_SPECS,
+      testIgnore: CHROMIUM_ONLY_SPECS,
       use: { ...devices['Desktop Firefox'] },
     },
     {
       name: 'webkit',
       testMatch: UI_TEST_MATCH,
-      testIgnore: DB_ONLY_SPECS,
+      testIgnore: CHROMIUM_ONLY_SPECS,
       use: { ...devices['Desktop Safari'] },
     },
     {

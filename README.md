@@ -50,6 +50,9 @@ npm run gap:onboard -- --id=<new-app> --name="..." --baseUrl=...
 # Natural-language / structured-input interface for Manual QA (see docs/NATURAL-LANGUAGE.md):
 npm run gap
 # GAP > Run smoke tests for Leave module in QA using Chrome
+
+# Application discovery — map a new application before writing tests (see docs/DISCOVERY.md):
+npm run gap:discover -- --application=<new-app> --url=<baseUrl> --start-path=/login.html
 ```
 
 See [`package.json`](./package.json) for the full script list, or
@@ -60,17 +63,17 @@ and running tests.
 
 ```
 config/             Environment files, applications.json registry, execution manifests
-cli/                GAP CLI (gap-test, gap-onboard, gap — natural language) — compiled, not Playwright-run
+cli/                GAP CLI (gap-test, gap-onboard, gap, gap-discover) — compiled, not Playwright-run
 docker/             Dockerfile for containerized execution
 docs/               Guides — see Documentation section below
 src/core/           Framework internals: fixtures, logger, reporter, http client,
                     db client, browser manager, locator intelligence, coverage,
                     execution resolver, intent parser (natural language/structured
-                    input), global setup/teardown, utils
+                    input), application discovery, global setup/teardown, utils
 src/ui/             Page Objects and Component Objects
 src/api/            API endpoint clients
 applications/       Per-application code (e.g. hrms/) — isolated from generic core
-tests/              Framework-level specs, organized by type (ui / api / e2e / locator / coverage / intent)
+tests/              Framework-level specs, organized by type (ui / api / e2e / locator / coverage / intent / discovery)
 test-data/          Static fixtures, dynamic Faker-based factories, builders
 .github/workflows/  GitHub Actions CI (framework CI + GAP manual dispatch)
 ```
@@ -96,6 +99,7 @@ vs. swappable example scaffolding — is in
 | Test Coverage         | `src/core/coverage/`, `tests/coverage/`                                             | Requirement-to-test traceability (not pass-rate-as-coverage); per-application via `GAP_APPLICATION`                           |
 | GAP Platform          | `cli/`, `src/core/execution/`, `config/applications.json`                           | Application registry, execution manifests, resolver, CLI — see `docs/PLATFORM.md`                                             |
 | Natural Language      | `cli/gap.ts`, `src/core/intent/`, `tests/intent/`                                   | Deterministic NL/structured-input parser → same execution engine, no LLM — see `docs/NATURAL-LANGUAGE.md`                     |
+| Application Discovery | `cli/gap-discover.ts`, `src/core/discovery/`, `tests/discovery/`                    | Crawls a new application, reuses the existing LocatorResolver to verify each element — see `docs/DISCOVERY.md`                |
 | Reference application | `applications/hrms/`                                                                | HRMS Leave Management — full UI+API stack proving the platform end-to-end                                                     |
 | CI/CD                 | `.github/workflows/ci.yml`, `.github/workflows/gap-manual-run.yml`, `docs/CI-CD.md` | GitHub Actions (framework CI + GAP manual dispatch) implemented; Jenkins/Azure DevOps documented                              |
 | Docker                | `docker/Dockerfile`, `docker-compose.yml`                                           | Official Playwright base image — browsers preinstalled                                                                        |
@@ -142,6 +146,7 @@ npm run typecheck     # tsc --noEmit
 | [Architecture](docs/ARCHITECTURE.md)                 | Design rationale, folder-by-folder reference, execution flow, generic vs. example scaffolding                           |
 | [Platform](docs/PLATFORM.md)                         | Application registry, onboarding, execution manifests/resolver, CLI, GitHub Actions/Azure DevOps, reference application |
 | [Natural Language](docs/NATURAL-LANGUAGE.md)         | `npm run gap` — natural-language/structured-input execution for Manual QA, ambiguity handling, errors                   |
+| [Discovery](docs/DISCOVERY.md)                       | `npm run gap:discover` — crawl a new application into a structured, LocatorResolver-verified Application Map            |
 | [Configuration](docs/CONFIGURATION.md)               | Environment variables, secrets handling, adding a new environment                                                       |
 | [Testing Guide](docs/TESTING-GUIDE.md)               | Writing UI/API tests, page objects, endpoint clients, tags, execution                                                   |
 | [Locator Intelligence](docs/LOCATOR-INTELLIGENCE.md) | `ui.click`/`ui.fill`, resolution order, confidence levels, self-healing                                                 |

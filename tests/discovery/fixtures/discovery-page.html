@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Discovery test fixture</title>
+  </head>
+  <body>
+    <h1>Employee Portal</h1>
+
+    <nav>
+      <a href="/dashboard.html">Dashboard</a>
+      <a href="/reports.html">Reports</a>
+    </nav>
+
+    <form aria-label="Search">
+      <label for="search-input">Search</label>
+      <input id="search-input" type="text" />
+    </form>
+
+    <label for="username-input">Username</label>
+    <input id="username-input" type="text" />
+
+    <label for="country-select">Country</label>
+    <select id="country-select">
+      <option>USA</option>
+    </select>
+
+    <label for="agree-checkbox">I agree</label>
+    <input id="agree-checkbox" type="checkbox" />
+
+    <button>Submit</button>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Alex</td>
+          <td>Employee</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div data-testid="profile-widget" style="width: 24px; height: 24px; background: #ccc"></div>
+
+    <!-- duplicate accessible name: proves "verified" is absent for ambiguous elements -->
+    <button>Duplicate</button>
+    <button>Duplicate</button>
+  </body>
+</html>
