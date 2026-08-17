@@ -13,7 +13,7 @@ export interface RawStep {
   raw: string;
 }
 
-interface ResolvedStep {
+export interface ResolvedStep {
   kind: 'login-helper' | 'login-inline' | 'navigate' | 'click' | 'fill' | 'verify';
   description: string;
   /** Present when this step resolved to a specific discovered element re-verified via LocatorResolver. */
@@ -24,12 +24,28 @@ interface ResolvedStep {
   detail?: string;
 }
 
+/** One scored candidate considered for a step — kept for BOTH the ambiguous-confirmation prompt and diagnostic mode, whether or not it was ultimately chosen. */
+export interface MappingCandidate {
+  /** Display name (page name, or element name) and, for elements, the exact value a disambiguation choice re-parses to. */
+  label: string;
+  value: string;
+  score: number;
+  reasons: string[];
+  selected: boolean;
+}
+
 export interface StepMapping {
   step: RawStep;
-  /** Present only when confidently mapped — the honest "don't invent" contract lives in the absence of this field. */
+  /** HIGH/MEDIUM/LOW — mirrors which of resolved/ambiguous/unmapped is set below. Always present, even for step kinds (login/verify) that don't go through scoring. */
+  confidence: Confidence;
+  /** Present only when confidently (HIGH) mapped — the honest "don't invent" contract lives in the absence of this field. */
   resolved?: ResolvedStep;
-  /** Present when the step could NOT be confidently mapped. */
+  /** Present at MEDIUM confidence — real evidence exists for more than one candidate (or one candidate without a decisive margin); a human must pick. */
+  ambiguous?: { candidates: MappingCandidate[] };
+  /** Present at LOW confidence — could NOT be confidently mapped; never guessed. */
   unmapped?: { reason: string };
+  /** Every candidate considered and scored (may be empty) — powers diagnostic mode regardless of confidence tier. */
+  diagnostics: MappingCandidate[];
 }
 
 export interface TestSpecification {

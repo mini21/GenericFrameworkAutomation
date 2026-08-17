@@ -15,6 +15,8 @@ const SPEC: TestSpecification = {
   steps: [
     {
       step: { action: 'login', target: 'employee', raw: 'Login as employee' },
+      confidence: 'HIGH',
+      diagnostics: [],
       resolved: {
         kind: 'login-helper',
         description: 'loginAsHrmsUser(page, ui, profile.employee)',
@@ -27,6 +29,8 @@ const SPEC: TestSpecification = {
     },
     {
       step: { action: 'navigate', target: 'Apply Leave', raw: 'Open Apply Leave' },
+      confidence: 'HIGH',
+      diagnostics: [],
       resolved: {
         kind: 'navigate',
         description: "page.goto('/apply-leave.html')",
@@ -40,6 +44,8 @@ const SPEC: TestSpecification = {
         value: '{{date:start}}',
         raw: 'Select start and end dates',
       },
+      confidence: 'HIGH',
+      diagnostics: [],
       resolved: {
         kind: 'fill',
         description: "ui.fill('Start Date', startDate)",
@@ -56,6 +62,8 @@ const SPEC: TestSpecification = {
         value: 'Family trip',
         raw: 'Fill Reason as "Family trip"',
       },
+      confidence: 'HIGH',
+      diagnostics: [],
       resolved: {
         kind: 'fill',
         description: "ui.fill('Reason', 'Family trip')",
@@ -67,6 +75,8 @@ const SPEC: TestSpecification = {
     },
     {
       step: { action: 'click', target: 'submit', raw: 'Submit the request' },
+      confidence: 'HIGH',
+      diagnostics: [],
       resolved: {
         kind: 'click',
         description: "ui.click('Submit Application')",
@@ -82,6 +92,8 @@ const SPEC: TestSpecification = {
         value: 'Leave application submitted successfully',
         raw: 'Verify "Leave application submitted successfully" is shown',
       },
+      confidence: 'HIGH',
+      diagnostics: [],
       resolved: {
         kind: 'verify',
         description:
@@ -137,6 +149,8 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
       steps: [
         {
           step: { action: 'click', target: 'Mystery Button', raw: 'Click Mystery Button' },
+          confidence: 'LOW',
+          diagnostics: [],
           unmapped: { reason: 'not found' },
         },
       ],

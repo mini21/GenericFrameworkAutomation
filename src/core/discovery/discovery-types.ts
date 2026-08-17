@@ -10,6 +10,10 @@ import { Confidence, LocatorStrategy } from '../locator/locator-types';
 export interface DiscoveredElement {
   role: string;
   name: string;
+  /** The underlying HTML `type` attribute (e.g. "date", "email", "text") — generic DOM evidence for disambiguating same-shaped fields, captured for inputs/textareas/selects only. */
+  inputType?: string;
+  /** True for a `<button type="submit">`/`<input type="submit">` — a generic, app-agnostic signal for "this is the form's primary action", independent of its label text. */
+  isSubmit?: boolean;
   verified?: {
     strategy: LocatorStrategy;
     confidence: Confidence;

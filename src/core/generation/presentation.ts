@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { TestSpecification } from './generation-types';
+import { StepMapping, TestSpecification } from './generation-types';
 import { ValidationSummary } from './generation-orchestrator';
 
 function relativePath(filePath: string): string {
@@ -57,6 +57,58 @@ export function formatApprovalScreen(
     '--------------------------------',
   );
 
+  return lines.join('\n');
+}
+
+/**
+ * `--diagnose` output — for every step, every candidate the scorer
+ * considered and why (or why not) it was chosen, regardless of whether the
+ * step ultimately resolved. Powers debugging mapping failures without
+ * touching HRMS-specific code — every line comes straight from
+ * StepMapping.diagnostics, which element-scorer.ts already populates
+ * generically for any application.
+ */
+export function formatDiagnostics(mappings: StepMapping[]): string {
+  const lines: string[] = [
+    '',
+    '-------------------------------',
+    'DIAGNOSTIC MODE',
+    '-------------------------------',
+  ];
+
+  mappings.forEach((mapping, i) => {
+    lines.push('', `${i + 1}. ${mapping.step.raw}`, `   Confidence: ${mapping.confidence}`);
+
+    if (mapping.diagnostics.length === 0) {
+      lines.push(
+        '   Candidates: (none scored — this step kind is not matched against the ApplicationMap)',
+      );
+    } else {
+      lines.push('   Candidates:');
+      for (const c of mapping.diagnostics) {
+        const marker = c.selected ? '[selected]' : '[rejected]';
+        lines.push(`     ${marker} "${c.label}" — score ${c.score}`);
+        for (const reason of c.reasons) {
+          lines.push(`         - ${reason}`);
+        }
+      }
+    }
+
+    if (mapping.resolved) {
+      lines.push(`   Resolved: ${mapping.resolved.description}`);
+      if (mapping.resolved.strategy) {
+        lines.push(
+          `   Locator: ${mapping.resolved.strategy} (${mapping.resolved.confidence}) -> ${mapping.resolved.resolvedLocator}`,
+        );
+      }
+    } else if (mapping.ambiguous) {
+      lines.push('   Resolved: (ambiguous — not automatically mapped)');
+    } else if (mapping.unmapped) {
+      lines.push(`   Resolved: (unmapped — ${mapping.unmapped.reason})`);
+    }
+  });
+
+  lines.push('', '-------------------------------');
   return lines.join('\n');
 }
 

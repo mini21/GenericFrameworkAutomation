@@ -45,14 +45,80 @@ async function verify(
   }
 }
 
+interface FormFieldEvidence {
+  /** Best-effort label text (label[for]/aria-label/placeholder) -> HTML input `type` (or "select"/"textarea"). Generic — no app-specific selectors. */
+  inputTypesByLabel: Record<string, string>;
+  /** Lowercased accessible text of every native submit control (`<button>` with an implicit/explicit type="submit", or `<input type="submit">`) — an app-agnostic "this is the primary action" signal. */
+  submitLabels: string[];
+}
+
+// Uses Locator.evaluateAll (Playwright's own minimal element typings, no
+// project-wide "dom" lib needed — same pattern already used for `testIds`/
+// link-extraction elsewhere in this module) rather than page.evaluate,
+// which would need `document`/`HTMLInputElement` types this project's
+// tsconfig doesn't provide.
+async function collectFormFieldEvidence(page: Page): Promise<FormFieldEvidence> {
+  const fields = await page.locator('input, textarea, select').evaluateAll((elements) =>
+    elements.map((el) => {
+      const withLabels = el as unknown as { labels?: { textContent: string | null }[] };
+      let label = '';
+      if (withLabels.labels && withLabels.labels.length > 0 && withLabels.labels[0].textContent) {
+        label = withLabels.labels[0].textContent;
+      } else if (el.getAttribute('aria-label')) {
+        label = el.getAttribute('aria-label') ?? '';
+      } else if (el.getAttribute('placeholder')) {
+        label = el.getAttribute('placeholder') ?? '';
+      }
+      const tag = el.tagName.toLowerCase();
+      const type =
+        tag === 'select'
+          ? 'select'
+          : tag === 'textarea'
+            ? 'textarea'
+            : el.getAttribute('type') || 'text';
+      return { label: label.trim(), type };
+    }),
+  );
+
+  const submitButtons = await page.locator('button, input[type="submit"]').evaluateAll((elements) =>
+    elements
+      .filter((el) => {
+        const isButton = el.tagName.toLowerCase() === 'button';
+        // A plain <button> inside a form defaults to type="submit" per the
+        // HTML spec when no type attribute is given — checking the
+        // *effective* type (falling back to "submit"), not just a literal
+        // attribute match, so this works whether or not an app bothers to
+        // write type="submit" explicitly.
+        return isButton ? (el.getAttribute('type') || 'submit') === 'submit' : true;
+      })
+      .map((el) => {
+        const withValue = el as unknown as { value?: string };
+        return (el.textContent || withValue.value || el.getAttribute('aria-label') || '').trim();
+      }),
+  );
+
+  const inputTypesByLabel: Record<string, string> = {};
+  for (const { label, type } of fields) {
+    if (label) inputTypesByLabel[label.toLowerCase()] = type;
+  }
+
+  return {
+    inputTypesByLabel,
+    submitLabels: submitButtons.filter(Boolean).map((label) => label.toLowerCase()),
+  };
+}
+
 /**
  * Maps a single already-navigated page: what's on it, categorized by ARIA
  * role, with every click/fill-shaped element re-verified through the
  * EXISTING LocatorResolver (not just read off the accessibility tree) so
  * the map only reports names that are proven to resolve uniquely right now.
+ * Also captures generic DOM evidence (input `type`, native submit-control
+ * status) the requirement-to-UI mapper uses to disambiguate candidates —
+ * no app-specific selectors, just what any HTML form already exposes.
  */
 export async function mapPage(page: Page): Promise<PageMap> {
-  const [title, ariaSnapshot, testIds] = await Promise.all([
+  const [title, ariaSnapshot, testIds, formFieldEvidence] = await Promise.all([
     page.title(),
     page.locator('body').ariaSnapshot(),
     page
@@ -62,6 +128,7 @@ export async function mapPage(page: Page): Promise<PageMap> {
           .map((el) => el.getAttribute('data-testid'))
           .filter((value): value is string => Boolean(value)),
       ),
+    collectFormFieldEvidence(page),
   ]);
 
   const resolver = new LocatorResolver(page);
@@ -98,6 +165,8 @@ export async function mapPage(page: Page): Promise<PageMap> {
     if (seen.has(key)) continue;
     seen.add(key);
 
+    const inputType = formFieldEvidence.inputTypesByLabel[name.toLowerCase()];
+
     if (role === 'heading') {
       headings.push(name);
     } else if (role === 'checkbox' || role === 'radio') {
@@ -105,12 +174,13 @@ export async function mapPage(page: Page): Promise<PageMap> {
     } else if (role === 'link') {
       links.push({ role, name, verified: await verify(resolver, name, 'click') });
     } else if (CLICK_ROLES.has(role)) {
-      buttons.push({ role, name, verified: await verify(resolver, name, 'click') });
+      const isSubmit = formFieldEvidence.submitLabels.includes(name.toLowerCase());
+      buttons.push({ role, name, isSubmit, verified: await verify(resolver, name, 'click') });
     } else if (FILL_ROLES.has(role)) {
-      inputs.push({ role, name, verified: await verify(resolver, name, 'fill') });
+      inputs.push({ role, name, inputType, verified: await verify(resolver, name, 'fill') });
     } else if (SELECT_ROLES.has(role)) {
       // Neither click nor fill fits a <select> — reported unverified, on purpose.
-      selects.push({ role, name });
+      selects.push({ role, name, inputType });
     }
   }
 

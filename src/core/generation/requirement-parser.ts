@@ -16,7 +16,12 @@ const NAVIGATE_PATTERN = /^(?:open|go to|navigate to)\s+(?:the\s+)?(.+)$/i;
 const DATES_PATTERN = /^select\s+start\s+and\s+end\s+dates?$/i;
 const FILL_QUOTED_PATTERN = /^(?:fill|enter|set)\s+(.+?)\s+(?:as|to|with)\s+"([^"]+)"$/i;
 const SELECT_QUOTED_PATTERN = /^select\s+"([^"]+)"\s+(?:for|in|from)\s+(.+)$/i;
-const SUBMIT_REQUEST_PATTERN = /^submit\s+the\s+request$/i;
+// Generic "submit ... request/form/application" recognition — matches
+// "submit the request", "submit the leave request", "submit the expense
+// approval form", etc. The words between "the" and the trailing noun are
+// free-form business vocabulary (never hardcoded to any one domain); what
+// makes the sentence a submit-intent is the shape, not a specific word.
+const SUBMIT_REQUEST_PATTERN = /^submit\s+the\s+(?:\S+\s+)*?(?:request|form|application)$/i;
 const CLICK_PATTERN = /^(?:click|submit|press)\s+(?:the\s+)?(.+)$/i;
 const VERIFY_PATTERN = /^(?:verify|check|confirm)\b.*?"([^"]+)"/i;
 

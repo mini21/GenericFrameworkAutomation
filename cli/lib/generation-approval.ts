@@ -1,6 +1,31 @@
 import { GenerationOutcome } from '../../src/core/generation/generation-orchestrator';
 import { formatApprovalScreen } from '../../src/core/generation/presentation';
+import { MappingCandidate, RawStep } from '../../src/core/generation/generation-types';
 import { LineReader, prompt } from './line-reader';
+
+/**
+ * Section-12's MEDIUM-confidence "show candidate(s) and ask for
+ * confirmation" — shared by both GAP entry points. The chosen candidate's
+ * `value` is fed back into `runGenerationPipeline` as the step's exact
+ * target, so it deterministically re-scores as an exact-name match; nothing
+ * is guessed if the user leaves it blank.
+ */
+export function resolveAmbiguityInteractively(
+  readLine: LineReader,
+): (step: RawStep, candidates: MappingCandidate[]) => Promise<string | undefined> {
+  return async (step, candidates) => {
+    process.stdout.write(
+      `\nGAP: "${step.raw}" matches more than one discovered candidate — which did you mean?\n`,
+    );
+    candidates.forEach((c, i) => {
+      process.stdout.write(`  ${i + 1}. ${c.label} (score ${c.score})\n`);
+      c.reasons.forEach((r) => process.stdout.write(`       - ${r}\n`));
+    });
+    const answer = ((await prompt(readLine, '  Choice (blank to skip): ')) ?? '').trim();
+    const index = Number(answer) - 1;
+    return Number.isInteger(index) && candidates[index] ? candidates[index].value : undefined;
+  };
+}
 
 /** Multi-line "one step per line, blank line to finish" collection — shared by cli/gap-generate.ts and cli/gap.ts's GENERATE flow. */
 export async function readRequirementInteractively(readLine: LineReader): Promise<string> {
