@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dashboard</title>
+  </head>
+  <body>
+    <h1>Dashboard</h1>
+    <p id="welcome-message"></p>
+    <nav>
+      <a href="/apply-leave.html">Apply Leave</a>
+      <a href="/leave-history.html">Leave History</a>
+      <a href="/approvals.html" id="approvals-link" style="display: none">Manager Approvals</a>
+    </nav>
+    <button id="logout-button">Logout</button>
+
+    <script>
+      (async () => {
+        const res = await fetch('/api/session');
+        if (!res.ok) {
+          window.location.href = '/login.html';
+          return;
+        }
+        const { user } = await res.json();
+        document.getElementById('welcome-message').textContent =
+          `Welcome, ${user.name} (${user.role})`;
+        if (user.role === 'manager') {
+          document.getElementById('approvals-link').style.display = 'inline';
+        }
+      })();
+
+      document.getElementById('logout-button').addEventListener('click', async () => {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/login.html';
+      });
+    </script>
+  </body>
+</html>

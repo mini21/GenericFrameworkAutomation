@@ -33,16 +33,30 @@ function resolveEnvironment(): Environment {
 }
 
 function loadEnvFile(env: Environment): void {
+  // Captured before anything else touches process.env: a var already set
+  // here came from the real shell/CI environment or a wrapping process
+  // (e.g. the GAP CLI injecting an application's BASE_URL before spawning
+  // Playwright) — that always wins, including over .env.local below.
+  const explicitlySet = new Set(Object.keys(process.env));
+
   const envFilePath = path.resolve(__dirname, 'environments', `.env.${env}`);
   if (!fs.existsSync(envFilePath)) {
     throw new Error(`Environment file not found: ${envFilePath}`);
   }
   dotenv.config({ path: envFilePath });
 
-  // Optional local override for secrets not committed to the repo.
+  // Optional local override for secrets not committed to the repo — only
+  // fills in keys that weren't explicitly set before this module ran, so
+  // it can override the committed .env.<env> placeholder (the common case)
+  // without ever clobbering a value the caller deliberately provided.
   const localOverridePath = path.resolve(process.cwd(), '.env.local');
   if (fs.existsSync(localOverridePath)) {
-    dotenv.config({ path: localOverridePath, override: true });
+    const localValues = dotenv.parse(fs.readFileSync(localOverridePath, 'utf-8'));
+    for (const [key, value] of Object.entries(localValues)) {
+      if (!explicitlySet.has(key)) {
+        process.env[key] = value;
+      }
+    }
   }
 }
 

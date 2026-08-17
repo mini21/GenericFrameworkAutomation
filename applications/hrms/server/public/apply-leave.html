@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Apply Leave</title>
+  </head>
+  <body>
+    <h1>Apply for Leave</h1>
+    <form id="apply-form">
+      <label for="start-date">Start Date</label>
+      <input id="start-date" type="date" required />
+
+      <label for="end-date">End Date</label>
+      <input id="end-date" type="date" required />
+
+      <label for="reason">Reason</label>
+      <textarea id="reason" required></textarea>
+
+      <button type="submit">Submit Application</button>
+    </form>
+    <p id="result-message" role="alert"></p>
+    <a href="/dashboard.html">Back to Dashboard</a>
+
+    <script>
+      document.getElementById('apply-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+        const reason = document.getElementById('reason').value;
+        const res = await fetch('/api/leave/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startDate, endDate, reason }),
+        });
+        const data = await res.json();
+        const message = document.getElementById('result-message');
+        message.textContent = res.ok
+          ? 'Leave application submitted successfully'
+          : data.error || 'Failed to submit leave application';
+      });
+    </script>
+  </body>
+</html>

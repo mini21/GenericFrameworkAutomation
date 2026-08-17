@@ -26,6 +26,8 @@
     "tests/**/*.ts",
     "test-data/**/*.ts",
     "config/**/*.ts",
+    "cli/**/*.ts",
+    "applications/**/*.ts",
     "playwright.config.ts"
   ],
   "exclude": [

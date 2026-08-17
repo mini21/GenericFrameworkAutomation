@@ -1,0 +1,16 @@
+application: hrms
+environment: qa
+
+execution:
+  type: regression
+  browsers:
+    - chromium
+  # workers: 1 — the HRMS reference app shares in-memory state across
+  # tests; leave.spec.ts and approval.spec.ts run test.describe.configure
+  # serial internally, but a single worker keeps the whole application run
+  # fully deterministic across files too. See docs/PLATFORM.md.
+  headless: true
+  workers: 1
+  retries: 0
+
+dataProfile: qa-default
