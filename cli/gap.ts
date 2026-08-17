@@ -6,6 +6,7 @@ import { parseStructuredInput } from '../src/core/intent/structured-parser';
 import { finalize, formatPlan } from '../src/core/intent/intent-resolver';
 import { Ambiguity } from '../src/core/intent/intent-types';
 import { classifyWorkflow } from '../src/core/intent/workflow-classifier';
+import { extractUrl } from '../src/core/intent/url-extractor';
 import { ENVIRONMENT_KEYWORDS, matchKeywords } from '../src/core/intent/vocabulary';
 import { listApplications } from '../src/core/config/application-registry';
 import {
@@ -149,10 +150,6 @@ function extractApplicationId(text: string): string | undefined {
     }
   }
   return undefined;
-}
-
-function extractUrl(text: string): string | undefined {
-  return /https?:\/\/\S+/i.exec(text)?.[0];
 }
 
 async function handleDiscover(readLine: LineReader, text: string): Promise<void> {
