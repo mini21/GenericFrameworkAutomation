@@ -23,6 +23,7 @@ const CHROMIUM_ONLY_SPECS = ['**/db-client.spec.ts', '**/application-map-writer.
 const API_TEST_MATCH = ['tests/api/**/*.spec.ts', 'applications/*/tests/api/**/*.spec.ts'];
 const COVERAGE_TEST_MATCH = ['tests/coverage/**/*.spec.ts'];
 const INTENT_TEST_MATCH = ['tests/intent/**/*.spec.ts'];
+const GENERATION_TEST_MATCH = ['tests/generation/**/*.spec.ts'];
 
 export default defineConfig({
   testDir: '.',
@@ -93,6 +94,11 @@ export default defineConfig({
     {
       name: 'intent',
       testMatch: INTENT_TEST_MATCH,
+      use: {},
+    },
+    {
+      name: 'generation',
+      testMatch: GENERATION_TEST_MATCH,
       use: {},
     },
   ],

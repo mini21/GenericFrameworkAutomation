@@ -24,6 +24,7 @@
     "gap:test": "npm run gap:build --silent && node dist/cli/gap-test.js",
     "gap:onboard": "npm run gap:build --silent && node dist/cli/gap-onboard.js",
     "gap:discover": "npm run gap:build --silent && node dist/cli/gap-discover.js",
+    "gap:generate": "npm run gap:build --silent && node dist/cli/gap-generate.js",
     "hrms:start": "npm run gap:build --silent && node dist/applications/hrms/server/app.js",
     "report:show": "playwright show-report reports/html-report",
     "report:allure:generate": "allure generate reports/allure-results --clean -o reports/allure-report",

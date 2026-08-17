@@ -1,15 +1,30 @@
 import * as readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
+import { chromium } from 'playwright';
 import { parseIntent } from '../src/core/intent/intent-parser';
 import { parseStructuredInput } from '../src/core/intent/structured-parser';
 import { finalize, formatPlan } from '../src/core/intent/intent-resolver';
 import { Ambiguity } from '../src/core/intent/intent-types';
+import { classifyWorkflow } from '../src/core/intent/workflow-classifier';
+import { ENVIRONMENT_KEYWORDS, matchKeywords } from '../src/core/intent/vocabulary';
+import { listApplications } from '../src/core/config/application-registry';
 import {
   toPlaywrightArgs,
   toEnv,
   ResolvedExecution,
   CliOverrides,
 } from '../src/core/execution/execution-resolver';
+import { crawlApplication } from '../src/core/discovery/site-crawler';
+import { writeApplicationMap, formatSummary } from '../src/core/discovery/application-map-writer';
+import {
+  runGenerationPipeline,
+  approveGeneration,
+  rejectGeneration,
+} from '../src/core/generation/generation-orchestrator';
+import { formatFinalSummary } from '../src/core/generation/presentation';
+import { runCoverageReport } from '../src/core/generation/generated-test-validator';
+import { createLineReader, prompt, LineReader } from './lib/line-reader';
+import { readRequirementInteractively, decideApproval } from './lib/generation-approval';
 
 const MAX_CLARIFICATION_ROUNDS = 5;
 
@@ -18,30 +33,6 @@ const STRUCTURED_FIELD_PATTERN =
 
 function isStructuredLine(line: string): boolean {
   return STRUCTURED_FIELD_PATTERN.test(line.trim());
-}
-
-/**
- * Reads one line at a time from a single shared async iterator over the
- * readline interface. Using `rl.question()` repeatedly (once per prompt) is
- * unsafe here: with piped/scripted input, readline can buffer and emit
- * lines faster than we re-attach each `question()` listener, silently
- * dropping any line that arrives while we're between prompts. Pulling from
- * one continuously-consumed iterator has no such race — it always returns
- * exactly the next line, however it arrived.
- */
-type LineReader = () => Promise<string | null>;
-
-function createLineReader(rl: readline.Interface): LineReader {
-  const iterator = rl[Symbol.asyncIterator]();
-  return async () => {
-    const { value, done } = await iterator.next();
-    return done ? null : value;
-  };
-}
-
-async function prompt(readLine: LineReader, text: string): Promise<string | null> {
-  process.stdout.write(text);
-  return readLine();
 }
 
 function printAmbiguity(ambiguity: Ambiguity): void {
@@ -107,28 +98,11 @@ function runResolved(resolved: ResolvedExecution): void {
   }
 }
 
-async function handleLine(
-  readLine: LineReader,
-  inputLines: string[],
-  autoConfirm: boolean,
-): Promise<void> {
-  const structured = inputLines.length > 1 || isStructuredLine(inputLines[0]);
+async function handleRun(readLine: LineReader, text: string, autoConfirm: boolean): Promise<void> {
+  const resolved = await resolveAmbiguitiesNL(readLine, text);
+  if (!resolved) return;
 
-  let intent: Partial<CliOverrides>;
-  if (structured) {
-    const result = parseStructuredInput(inputLines);
-    if (result.errors.length > 0) {
-      process.stdout.write(`\nGAP:\n  ${result.errors.join('\n  ')}\n\n`);
-      return;
-    }
-    intent = result.intent;
-  } else {
-    const resolved = await resolveAmbiguitiesNL(readLine, inputLines[0]);
-    if (!resolved) return;
-    intent = resolved;
-  }
-
-  const outcome = finalize(intent);
+  const outcome = finalize(resolved);
   if (!outcome.ok) {
     process.stdout.write(`\nGAP: ${outcome.message}\n\n`);
     return;
@@ -147,6 +121,166 @@ async function handleLine(
   }
 
   runResolved(outcome.resolved);
+}
+
+async function handleStructured(inputLines: string[]): Promise<void> {
+  const result = parseStructuredInput(inputLines);
+  if (result.errors.length > 0) {
+    process.stdout.write(`\nGAP:\n  ${result.errors.join('\n  ')}\n\n`);
+    return;
+  }
+
+  const outcome = finalize(result.intent);
+  if (!outcome.ok) {
+    process.stdout.write(`\nGAP: ${outcome.message}\n\n`);
+    return;
+  }
+
+  printPlan(outcome.resolved);
+  runResolved(outcome.resolved);
+}
+
+function extractApplicationId(text: string): string | undefined {
+  const registry = listApplications();
+  const lower = text.toLowerCase();
+  for (const [id, def] of Object.entries(registry)) {
+    if (new RegExp(`\\b${id}\\b`, 'i').test(text) || lower.includes(def.name.toLowerCase())) {
+      return id;
+    }
+  }
+  return undefined;
+}
+
+function extractUrl(text: string): string | undefined {
+  return /https?:\/\/\S+/i.exec(text)?.[0];
+}
+
+async function handleDiscover(readLine: LineReader, text: string): Promise<void> {
+  let application = extractApplicationId(text);
+  if (!application) {
+    application = ((await prompt(readLine, '\nApplication? ')) ?? '').trim();
+  }
+  if (!application) {
+    process.stdout.write('GAP: No application given — cannot discover.\n\n');
+    return;
+  }
+
+  let url = extractUrl(text);
+  if (!url) {
+    url = ((await prompt(readLine, 'Application URL? ')) ?? '').trim();
+  }
+  if (!url) {
+    process.stdout.write('GAP: No URL given — cannot discover.\n\n');
+    return;
+  }
+
+  process.stdout.write(`\nGAP: discovering "${application}" at ${url}...\n`);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({ baseURL: url });
+    const map = await crawlApplication(context, {
+      application,
+      baseUrl: url,
+      startPath: '/',
+      maxPages: 15,
+    });
+    const filePath = writeApplicationMap(map);
+    process.stdout.write(`\n${formatSummary(map)}\n`);
+    process.stdout.write(`GAP: application map written to ${filePath}\n\n`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function handleGenerate(
+  readLine: LineReader,
+  text: string,
+  autoConfirm: boolean,
+): Promise<void> {
+  let application = extractApplicationId(text);
+  if (!application) {
+    application = ((await prompt(readLine, '\nApplication? ')) ?? '').trim();
+  }
+  if (!application) {
+    process.stdout.write('GAP: No application given — cannot generate automation.\n\n');
+    return;
+  }
+
+  const envMatches = matchKeywords(text, ENVIRONMENT_KEYWORDS);
+  let environment: string = envMatches.length === 1 ? envMatches[0] : '';
+  if (!environment) {
+    const answer = ((await prompt(readLine, 'Environment? [qa] ')) ?? '').trim();
+    environment = answer || 'qa';
+  }
+
+  let url: string | undefined = extractUrl(text);
+  if (url === undefined) {
+    const answer = (
+      (await prompt(readLine, 'Application URL? (blank to reuse the existing discovery map) ')) ??
+      ''
+    ).trim();
+    url = answer || undefined;
+  }
+
+  const requirementMarker = /requirement:\s*/i.exec(text);
+  let requirementText = requirementMarker
+    ? text.slice(requirementMarker.index + requirementMarker[0].length).trim()
+    : '';
+  if (!requirementText) {
+    requirementText = await readRequirementInteractively(readLine);
+  }
+  if (!requirementText.trim()) {
+    process.stdout.write(
+      'GAP: No requirement/scenario provided. GAP cannot generate automation without one.\n\n',
+    );
+    return;
+  }
+
+  process.stdout.write(`\nGAP: generating automation for "${application}"...\n`);
+  const outcome = await runGenerationPipeline({ application, environment, url, requirementText });
+
+  if (outcome.status === 'blocked') {
+    process.stdout.write(`\nGAP: ${outcome.message}\n\n`);
+    return;
+  }
+
+  const approved = await decideApproval(readLine, outcome, autoConfirm);
+  if (!approved) {
+    rejectGeneration(outcome);
+    process.stdout.write('\nGAP: Rejected — nothing was saved.\n\n');
+    return;
+  }
+
+  approveGeneration(outcome);
+  process.stdout.write('\nGAP: updating requirement coverage...\n');
+  const coverage = runCoverageReport(outcome.spec.application);
+  const coverageLine = /Requirement Coverage:.*$/m.exec(coverage.output)?.[0];
+  process.stdout.write(
+    formatFinalSummary(outcome.spec, outcome.filePath, outcome.stableTestId, coverageLine),
+  );
+}
+
+async function handleLine(
+  readLine: LineReader,
+  inputLines: string[],
+  autoConfirm: boolean,
+): Promise<void> {
+  if (inputLines.length > 1 || isStructuredLine(inputLines[0])) {
+    await handleStructured(inputLines);
+    return;
+  }
+
+  const text = inputLines[0];
+  const workflow = classifyWorkflow(text);
+  if (workflow === 'GENERATE') {
+    await handleGenerate(readLine, text, autoConfirm);
+    return;
+  }
+  if (workflow === 'DISCOVER') {
+    await handleDiscover(readLine, text);
+    return;
+  }
+  await handleRun(readLine, text, autoConfirm);
 }
 
 async function promptLoop(readLine: LineReader, autoConfirm: boolean): Promise<void> {
@@ -183,8 +317,13 @@ async function main(): Promise<void> {
   const readLine = createLineReader(rl);
 
   process.stdout.write('GAP — Generic Automation Platform\n');
-  process.stdout.write('Describe what you want to run in plain English, or type "exit".\n');
-  process.stdout.write('Example: Run smoke tests for Leave module in QA using Chrome\n\n');
+  process.stdout.write('Describe what you want to run, discover, or generate — or type "exit".\n');
+  process.stdout.write('Examples:\n');
+  process.stdout.write('  Run smoke tests for Leave module in QA using Chrome\n');
+  process.stdout.write('  Discover HRMS at http://localhost:4100\n');
+  process.stdout.write(
+    '  Create automation for HRMS at http://localhost:4100 in QA. Requirement: ...\n\n',
+  );
 
   if (positional) {
     await handleLine(readLine, [positional], autoConfirm);

@@ -10,6 +10,8 @@
     "src/core/intent/**/*.ts",
     "src/core/locator/**/*.ts",
     "src/core/discovery/**/*.ts",
+    "src/core/generation/**/*.ts",
+    "src/core/coverage/**/*.ts",
     "config/**/*.ts",
     "applications/*/server/**/*.ts"
   ],
