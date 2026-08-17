@@ -48,3 +48,8 @@ export function getApplication(id: string): ApplicationDefinition {
   }
   return app;
 }
+
+/** Read-only enumeration of every registered application — used by callers (e.g. the natural-language intent parser) that need to search/list applications rather than look up one by id. */
+export function listApplications(): ApplicationRegistry {
+  return loadRegistry();
+}

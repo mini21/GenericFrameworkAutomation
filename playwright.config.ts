@@ -20,6 +20,7 @@ const DB_ONLY_SPECS = ['**/db-client.spec.ts'];
 
 const API_TEST_MATCH = ['tests/api/**/*.spec.ts', 'applications/*/tests/api/**/*.spec.ts'];
 const COVERAGE_TEST_MATCH = ['tests/coverage/**/*.spec.ts'];
+const INTENT_TEST_MATCH = ['tests/intent/**/*.spec.ts'];
 
 export default defineConfig({
   testDir: '.',
@@ -85,6 +86,11 @@ export default defineConfig({
     {
       name: 'coverage',
       testMatch: COVERAGE_TEST_MATCH,
+      use: {},
+    },
+    {
+      name: 'intent',
+      testMatch: INTENT_TEST_MATCH,
       use: {},
     },
   ],

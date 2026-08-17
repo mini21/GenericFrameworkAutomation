@@ -20,6 +20,7 @@
     "test:locator": "cross-env ENV=qa playwright test tests/locator",
     "coverage:report": "cross-env ENV=qa playwright test --project=coverage",
     "gap:build": "tsc -p tsconfig.cli.json && node -e \"require('fs').cpSync('applications/hrms/server/public','dist/applications/hrms/server/public',{recursive:true})\"",
+    "gap": "npm run gap:build --silent && node dist/cli/gap.js",
     "gap:test": "npm run gap:build --silent && node dist/cli/gap-test.js",
     "gap:onboard": "npm run gap:build --silent && node dist/cli/gap-onboard.js",
     "hrms:start": "npm run gap:build --silent && node dist/applications/hrms/server/app.js",
