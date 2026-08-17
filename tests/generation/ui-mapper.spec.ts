@@ -166,7 +166,11 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     ]);
   });
 
-  test('"Open Leave" resolves to "Apply Leave" (not "Leave History") once upcoming steps corroborate it — this is the reported bug', () => {
+  test('a later fill/submit step never corroborates "Open Leave" — upcoming-step evidence must not score the current navigate step', () => {
+    // Same ambiguous pair as the bare case above, now followed by fill/submit
+    // steps that (before this fix) used to "corroborate" Apply Leave into a
+    // false HIGH match. Confidence must be identical to the bare case —
+    // proving upcoming steps contribute nothing to navigate scoring.
     const steps: RawStep[] = [
       { action: 'navigate', target: 'Leave', raw: 'Open Leave' },
       {
@@ -179,11 +183,12 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     ];
     const mappings = mapRequirementToUI('hrms', MAP, steps);
 
-    expect(mappings[0].confidence).toBe('HIGH');
-    expect(mappings[0].resolved?.detail).toBe('/apply-leave.html');
-    // currentPage was correctly updated to Apply Leave, so the next steps resolve too:
-    expect(mappings[1].resolved?.description).toBe("ui.fill('Reason', startDate)");
-    expect(mappings[2].resolved?.description).toBe("ui.click('Submit Application')");
+    expect(mappings[0].confidence).toBe('MEDIUM');
+    expect(mappings[0].resolved).toBeUndefined();
+    expect(mappings[0].ambiguous?.candidates.map((c) => c.label).sort()).toEqual([
+      'Apply Leave',
+      'Leave History',
+    ]);
   });
 
   test('a heading that merely mentions the target word is NOT navigation evidence (the reported false positive)', () => {
@@ -227,6 +232,102 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
       'No discovered page provides any evidence for "Leave"',
     );
     expect(mapping.unmapped?.reason).not.toContain('Login');
+  });
+
+  test('FAIL CASE: a login page with a heading containing the target AND a verified submit button is NOT selected for "Open Leave"', () => {
+    // Exact shape of the reported regression: "Open Leave" followed by
+    // "Submit the leave request" used to let Login's own Login button
+    // (a verified native submit control) "corroborate" a false match —
+    // upcoming-step evidence must not reach navigate scoring at all now.
+    const loginOnlyMap: ApplicationMap = {
+      application: 'fixture-app',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        {
+          path: '/login.html',
+          url: 'http://localhost:9999/login.html',
+          title: 'HRMS Login',
+          pageName: 'HRMS Login',
+          headings: ['Employee Leave Management'],
+          buttons: [{ role: 'button', name: 'Login', isSubmit: true, verified: VERIFIED }],
+          links: [],
+          inputs: [
+            { role: 'textbox', name: 'Username', verified: VERIFIED },
+            { role: 'textbox', name: 'Password', verified: VERIFIED },
+          ],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          ariaSnapshot: '',
+        },
+      ],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Leave', raw: 'Open Leave' },
+      { action: 'click', target: 'submit', raw: 'Submit the leave request' },
+    ];
+    const [mapping] = mapRequirementToUI('hrms', loginOnlyMap, steps);
+    expect(mapping.resolved).toBeUndefined();
+    expect(mapping.diagnostics).toHaveLength(0);
+    expect(mapping.unmapped?.reason).not.toContain('Login');
+  });
+
+  test('PASS CASE: a navigation link named "Leave" with href "/leave.html" resolves "Open Leave" at HIGH confidence', () => {
+    const navMap: ApplicationMap = {
+      application: 'fixture-app',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        {
+          path: '/dashboard.html',
+          url: 'http://localhost:9999/dashboard.html',
+          title: 'Dashboard',
+          pageName: 'Dashboard',
+          headings: [],
+          buttons: [],
+          links: [{ role: 'link', name: 'Leave', href: '/leave.html', verified: VERIFIED }],
+          inputs: [],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          ariaSnapshot: '',
+        },
+        {
+          path: '/leave.html',
+          url: 'http://localhost:9999/leave.html',
+          title: 'Leave',
+          pageName: 'Leave',
+          headings: [],
+          buttons: [],
+          links: [],
+          inputs: [],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          ariaSnapshot: '',
+        },
+      ],
+    };
+    const steps: RawStep[] = [{ action: 'navigate', target: 'Leave', raw: 'Open Leave' }];
+    const [mapping] = mapRequirementToUI('hrms', navMap, steps);
+    expect(mapping.confidence).toBe('HIGH');
+    expect(mapping.resolved).toEqual({
+      kind: 'navigate',
+      description: "page.goto('/leave.html')",
+      detail: '/leave.html',
+    });
   });
 
   test('a verified link whose href actually points to the target page is real navigation evidence, unlike a heading match', () => {

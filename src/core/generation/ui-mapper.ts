@@ -132,51 +132,18 @@ function mapVerify(step: RawStep): StepMapping {
 }
 
 // ---------------------------------------------------------------------------
-// Navigate — scored against every discovered page. Beyond name/heading/
-// title similarity, a page also earns credit for containing verified
-// elements that match the UPCOMING steps in the same mini-scenario (the
-// steps between this navigation and the next one) — this is what lets
-// "Open Leave" resolve to "Apply Leave" over "Leave History" when the next
-// steps fill Start/End Date and submit: evidence from the *rest of the
-// scenario*, not a guess or an HRMS-specific rule.
+// Navigate — a strictly navigation-intent match: "Open <page>"/"Navigate
+// to <page>"/"Go to <page>"/"Visit <page>" is asking which page to land
+// on, so only page-identity/navigation evidence counts (name, title, or a
+// real verified link that actually points here). Deliberately does NOT
+// consider anything about the CURRENT page's own content (a submit
+// button, an input, a heading) nor anything from steps that come AFTER
+// this one — a page having a login form's submit button, or happening to
+// share vocabulary with a later fill/submit step, is not evidence this is
+// the page being navigated to. If a heading merely mentions the target
+// word, or the page just happens to have some verified button on it,
+// that's not navigation evidence either — see findNavigationEvidence.
 // ---------------------------------------------------------------------------
-
-function corroboratePage(
-  page: PageMap,
-  upcomingSteps: RawStep[],
-): { bonus: number; reasons: string[] } {
-  let bonus = 0;
-  const reasons: string[] = [];
-
-  for (const step of upcomingSteps) {
-    if (step.action === 'navigate') break; // corroboration window ends at the next navigation
-    if (step.action === 'login' || step.action === 'verify') continue; // not page-local evidence
-
-    if (step.action === 'click' && step.target === 'submit') {
-      if (page.buttons.some((b) => b.isSubmit && b.verified)) {
-        bonus += 20;
-        reasons.push(`has a verified native submit control, matching upcoming step "${step.raw}"`);
-      }
-      continue;
-    }
-
-    const target = step.target;
-    if (!target) continue;
-    const pool: DiscoveredElement[] = [
-      ...page.inputs,
-      ...page.buttons,
-      ...page.links,
-      ...page.checkboxes,
-    ];
-    const hit = pool.find((el) => el.verified && scoreNameMatch(target, el.name));
-    if (hit) {
-      bonus += 20;
-      reasons.push(`has a verified element "${hit.name}" matching upcoming step "${step.raw}"`);
-    }
-  }
-
-  return { bonus: Math.min(bonus, 60), reasons };
-}
 
 // A page's heading is prose, not navigation — "Employee Leave Management"
 // on a Login page mentioning the word "Leave" is not evidence anyone can
@@ -203,11 +170,7 @@ function findNavigationEvidence(
   return undefined;
 }
 
-function scorePages(
-  target: string,
-  pages: PageMap[],
-  upcomingSteps: RawStep[],
-): ScoredCandidate<PageMap>[] {
+function scorePages(target: string, pages: PageMap[]): ScoredCandidate<PageMap>[] {
   const results: ScoredCandidate<PageMap>[] = [];
 
   for (const page of pages) {
@@ -230,10 +193,6 @@ function scorePages(
       score += 10;
       reasons.push(`page title "${page.title}" also matches "${target}"`);
     }
-
-    const { bonus, reasons: corroborationReasons } = corroboratePage(page, upcomingSteps);
-    score += bonus;
-    reasons.push(...corroborationReasons);
 
     if (score > 0) results.push({ item: page, score, reasons });
   }
@@ -475,11 +434,7 @@ export function mapRequirementToUI(
 
     if (step.action === 'navigate') {
       const target = step.target ?? '';
-      const outcome = finalizeNavigate(
-        step,
-        target,
-        scorePages(target, map.pages, steps.slice(i + 1)),
-      );
+      const outcome = finalizeNavigate(step, target, scorePages(target, map.pages));
       mappings.push(outcome.mapping);
       if (outcome.chosenPage) currentPage = outcome.chosenPage;
       continue;
