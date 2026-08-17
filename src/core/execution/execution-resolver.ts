@@ -27,6 +27,8 @@ export interface CliOverrides {
   tags?: string[];
   dataProfile?: string;
   authProfile?: string;
+  /** Exact spec file to run instead of the whole `applications/<app>/tests` tree — used to validate/execute one freshly-generated test without a second execution path. */
+  testFile?: string;
 }
 
 export interface ResolvedExecution {
@@ -41,6 +43,7 @@ export interface ResolvedExecution {
   tags: string[];
   dataProfile?: string;
   authProfile?: string;
+  testFile?: string;
 }
 
 function firstDefined<T>(...values: (T | undefined)[]): T | undefined {
@@ -162,6 +165,7 @@ export function resolveExecution({
     tags,
     dataProfile,
     authProfile,
+    testFile: cli.testFile,
   };
 }
 
@@ -175,7 +179,10 @@ function escapeRegExp(value: string): string {
  * custom test runner: this is purely argument construction.
  */
 export function toPlaywrightArgs(resolved: ResolvedExecution): string[] {
-  const args: string[] = ['test', `applications/${resolved.application}/tests`];
+  const args: string[] = [
+    'test',
+    resolved.testFile ?? `applications/${resolved.application}/tests`,
+  ];
 
   for (const browser of resolved.browsers) {
     args.push(`--project=${browser}`);

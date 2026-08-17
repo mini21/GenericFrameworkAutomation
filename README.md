@@ -53,6 +53,9 @@ npm run gap
 
 # Application discovery — map a new application before writing tests (see docs/DISCOVERY.md):
 npm run gap:discover -- --application=<new-app> --url=<baseUrl> --start-path=/login.html
+
+# URL + requirement -> discovered, validated, approved Playwright automation (see docs/GENERATION.md):
+npm run gap:generate -- --application=<id> --url=<baseUrl> --requirement-file=<path> --approve
 ```
 
 See [`package.json`](./package.json) for the full script list, or
@@ -84,25 +87,26 @@ vs. swappable example scaffolding — is in
 
 ## What's implemented
 
-| Layer                 | Where                                                                               | Notes                                                                                                                         |
-| --------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Config                | `config/env.config.ts`                                                              | Sole `process.env` reader; typed `AppConfig`; env-file + `.env.local` override                                                |
-| Logging               | `src/core/logger/`, `src/core/fixtures/logger.fixture.ts`                           | Winston, console+file, auto-logs test start/finish/failure                                                                    |
-| Reporting             | `playwright.config.ts`, `src/core/reporter/`                                        | HTML + JUnit + Allure + custom `SummaryReporter`                                                                              |
-| Browser management    | `src/core/browser/browser-manager.ts`                                               | For use outside the standard per-test fixture lifecycle                                                                       |
-| API automation        | `src/core/http/`, `src/core/fixtures/api.fixture.ts`                                | `ApiClient` (retry, error handling), schema validation, bearer-token auth                                                     |
-| UI automation         | `src/ui/pages/`, `src/core/fixtures/ui.fixture.ts`                                  | Page Object Model, `BasePage`, example pages                                                                                  |
-| Auth session reuse    | `src/core/fixtures/auth.fixture.ts`                                                 | Worker-scoped login-once via `storageState`                                                                                   |
-| Database              | `src/core/db/`, `src/core/fixtures/db.fixture.ts`                                   | Generic `DbClient` interface + safe in-memory example implementation                                                          |
-| Test data             | `test-data/`                                                                        | Static JSON, Faker factories, builders, env-specific data lookup                                                              |
-| Locator Intelligence  | `src/core/locator/`, `src/core/fixtures/locator.fixture.ts`                         | `ui.click`/`ui.fill` — deterministic role→label→placeholder→text→testid→css→xpath resolution, confidence levels, self-healing |
-| Test Coverage         | `src/core/coverage/`, `tests/coverage/`                                             | Requirement-to-test traceability (not pass-rate-as-coverage); per-application via `GAP_APPLICATION`                           |
-| GAP Platform          | `cli/`, `src/core/execution/`, `config/applications.json`                           | Application registry, execution manifests, resolver, CLI — see `docs/PLATFORM.md`                                             |
-| Natural Language      | `cli/gap.ts`, `src/core/intent/`, `tests/intent/`                                   | Deterministic NL/structured-input parser → same execution engine, no LLM — see `docs/NATURAL-LANGUAGE.md`                     |
-| Application Discovery | `cli/gap-discover.ts`, `src/core/discovery/`, `tests/discovery/`                    | Crawls a new application, reuses the existing LocatorResolver to verify each element — see `docs/DISCOVERY.md`                |
-| Reference application | `applications/hrms/`                                                                | HRMS Leave Management — full UI+API stack proving the platform end-to-end                                                     |
-| CI/CD                 | `.github/workflows/ci.yml`, `.github/workflows/gap-manual-run.yml`, `docs/CI-CD.md` | GitHub Actions (framework CI + GAP manual dispatch) implemented; Jenkins/Azure DevOps documented                              |
-| Docker                | `docker/Dockerfile`, `docker-compose.yml`                                           | Official Playwright base image — browsers preinstalled                                                                        |
+| Layer                 | Where                                                                               | Notes                                                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Config                | `config/env.config.ts`                                                              | Sole `process.env` reader; typed `AppConfig`; env-file + `.env.local` override                                                        |
+| Logging               | `src/core/logger/`, `src/core/fixtures/logger.fixture.ts`                           | Winston, console+file, auto-logs test start/finish/failure                                                                            |
+| Reporting             | `playwright.config.ts`, `src/core/reporter/`                                        | HTML + JUnit + Allure + custom `SummaryReporter`                                                                                      |
+| Browser management    | `src/core/browser/browser-manager.ts`                                               | For use outside the standard per-test fixture lifecycle                                                                               |
+| API automation        | `src/core/http/`, `src/core/fixtures/api.fixture.ts`                                | `ApiClient` (retry, error handling), schema validation, bearer-token auth                                                             |
+| UI automation         | `src/ui/pages/`, `src/core/fixtures/ui.fixture.ts`                                  | Page Object Model, `BasePage`, example pages                                                                                          |
+| Auth session reuse    | `src/core/fixtures/auth.fixture.ts`                                                 | Worker-scoped login-once via `storageState`                                                                                           |
+| Database              | `src/core/db/`, `src/core/fixtures/db.fixture.ts`                                   | Generic `DbClient` interface + safe in-memory example implementation                                                                  |
+| Test data             | `test-data/`                                                                        | Static JSON, Faker factories, builders, env-specific data lookup                                                                      |
+| Locator Intelligence  | `src/core/locator/`, `src/core/fixtures/locator.fixture.ts`                         | `ui.click`/`ui.fill` — deterministic role→label→placeholder→text→testid→css→xpath resolution, confidence levels, self-healing         |
+| Test Coverage         | `src/core/coverage/`, `tests/coverage/`                                             | Requirement-to-test traceability (not pass-rate-as-coverage); per-application via `GAP_APPLICATION`                                   |
+| GAP Platform          | `cli/`, `src/core/execution/`, `config/applications.json`                           | Application registry, execution manifests, resolver, CLI — see `docs/PLATFORM.md`                                                     |
+| Natural Language      | `cli/gap.ts`, `src/core/intent/`, `tests/intent/`                                   | Deterministic NL/structured-input parser → same execution engine, no LLM — see `docs/NATURAL-LANGUAGE.md`                             |
+| Application Discovery | `cli/gap-discover.ts`, `src/core/discovery/`, `tests/discovery/`                    | Crawls a new application, reuses the existing LocatorResolver to verify each element — see `docs/DISCOVERY.md`                        |
+| URL→Requirement→Test  | `cli/gap-generate.ts`, `src/core/generation/`, `tests/generation/`                  | Discovers, maps a requirement to verified UI, generates/validates/executes real automation, human-approved — see `docs/GENERATION.md` |
+| Reference application | `applications/hrms/`                                                                | HRMS Leave Management — full UI+API stack proving the platform end-to-end                                                             |
+| CI/CD                 | `.github/workflows/ci.yml`, `.github/workflows/gap-manual-run.yml`, `docs/CI-CD.md` | GitHub Actions (framework CI + GAP manual dispatch) implemented; Jenkins/Azure DevOps documented                                      |
+| Docker                | `docker/Dockerfile`, `docker-compose.yml`                                           | Official Playwright base image — browsers preinstalled                                                                                |
 
 ## Configuration & Environments
 
@@ -147,6 +151,7 @@ npm run typecheck     # tsc --noEmit
 | [Platform](docs/PLATFORM.md)                         | Application registry, onboarding, execution manifests/resolver, CLI, GitHub Actions/Azure DevOps, reference application |
 | [Natural Language](docs/NATURAL-LANGUAGE.md)         | `npm run gap` — natural-language/structured-input execution for Manual QA, ambiguity handling, errors                   |
 | [Discovery](docs/DISCOVERY.md)                       | `npm run gap:discover` — crawl a new application into a structured, LocatorResolver-verified Application Map            |
+| [Generation](docs/GENERATION.md)                     | `npm run gap:generate` — URL + requirement → discovered, validated, human-approved Playwright automation                |
 | [Configuration](docs/CONFIGURATION.md)               | Environment variables, secrets handling, adding a new environment                                                       |
 | [Testing Guide](docs/TESTING-GUIDE.md)               | Writing UI/API tests, page objects, endpoint clients, tags, execution                                                   |
 | [Locator Intelligence](docs/LOCATOR-INTELLIGENCE.md) | `ui.click`/`ui.fill`, resolution order, confidence levels, self-healing                                                 |

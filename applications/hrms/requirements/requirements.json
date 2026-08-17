@@ -47,6 +47,12 @@
       "priority": "High",
       "feature": "Approval",
       "tests": ["hrms.approval.reject"]
+    },
+    "LEAVE-005": {
+      "name": "Employee should be able to apply leave",
+      "priority": "Medium",
+      "feature": "Leave",
+      "tests": ["hrms.leave.generated.1"]
     }
   }
 }
