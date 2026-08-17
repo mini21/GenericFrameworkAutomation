@@ -108,6 +108,29 @@ async function collectFormFieldEvidence(page: Page): Promise<FormFieldEvidence> 
   };
 }
 
+// Same generic, no-"dom"-lib evaluateAll pattern as collectFormFieldEvidence
+// — resolved to a pathname in Node (not inside the browser callback) using
+// the same `new URL(..., page.url())` idiom already used for `path` below.
+async function collectLinkHrefs(page: Page): Promise<Record<string, string>> {
+  const raw = await page.locator('a[href]').evaluateAll((anchors) =>
+    anchors.map((a) => ({
+      name: (a.textContent || a.getAttribute('aria-label') || '').trim(),
+      href: a.getAttribute('href') || '',
+    })),
+  );
+  const base = page.url();
+  const hrefsByName: Record<string, string> = {};
+  for (const { name, href } of raw) {
+    if (!name || !href) continue;
+    try {
+      hrefsByName[name.toLowerCase()] = new URL(href, base).pathname;
+    } catch {
+      // mailto:, javascript:, or otherwise malformed — not a navigable page path
+    }
+  }
+  return hrefsByName;
+}
+
 /**
  * Maps a single already-navigated page: what's on it, categorized by ARIA
  * role, with every click/fill-shaped element re-verified through the
@@ -118,7 +141,7 @@ async function collectFormFieldEvidence(page: Page): Promise<FormFieldEvidence> 
  * no app-specific selectors, just what any HTML form already exposes.
  */
 export async function mapPage(page: Page): Promise<PageMap> {
-  const [title, ariaSnapshot, testIds, formFieldEvidence] = await Promise.all([
+  const [title, ariaSnapshot, testIds, formFieldEvidence, linkHrefsByName] = await Promise.all([
     page.title(),
     page.locator('body').ariaSnapshot(),
     page
@@ -129,6 +152,7 @@ export async function mapPage(page: Page): Promise<PageMap> {
           .filter((value): value is string => Boolean(value)),
       ),
     collectFormFieldEvidence(page),
+    collectLinkHrefs(page),
   ]);
 
   const resolver = new LocatorResolver(page);
@@ -172,7 +196,12 @@ export async function mapPage(page: Page): Promise<PageMap> {
     } else if (role === 'checkbox' || role === 'radio') {
       checkboxes.push({ role, name, verified: await verify(resolver, name, 'click') });
     } else if (role === 'link') {
-      links.push({ role, name, verified: await verify(resolver, name, 'click') });
+      links.push({
+        role,
+        name,
+        href: linkHrefsByName[name.toLowerCase()],
+        verified: await verify(resolver, name, 'click'),
+      });
     } else if (CLICK_ROLES.has(role)) {
       const isSubmit = formFieldEvidence.submitLabels.includes(name.toLowerCase());
       buttons.push({ role, name, isSubmit, verified: await verify(resolver, name, 'click') });

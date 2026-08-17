@@ -14,6 +14,8 @@ export interface DiscoveredElement {
   inputType?: string;
   /** True for a `<button type="submit">`/`<input type="submit">` — a generic, app-agnostic signal for "this is the form's primary action", independent of its label text. */
   isSubmit?: boolean;
+  /** For `role: "link"` only — the link's `href`, resolved to a pathname (e.g. "/apply-leave.html"). Real navigation evidence: which page this element actually goes to, as opposed to text that merely mentions a page's name. */
+  href?: string;
   verified?: {
     strategy: LocatorStrategy;
     confidence: Confidence;

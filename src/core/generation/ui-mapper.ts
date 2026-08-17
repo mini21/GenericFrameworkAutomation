@@ -178,6 +178,31 @@ function corroboratePage(
   return { bonus: Math.min(bonus, 60), reasons };
 }
 
+// A page's heading is prose, not navigation — "Employee Leave Management"
+// on a Login page mentioning the word "Leave" is not evidence anyone can
+// actually reach a Leave page from here. Deliberately NOT scored for
+// navigate matching (see findNavigationEvidence below for what real
+// navigation evidence looks like).
+function findNavigationEvidence(
+  target: string,
+  candidate: PageMap,
+  allPages: PageMap[],
+): { score: number; reason: string } | undefined {
+  for (const page of allPages) {
+    for (const link of page.links) {
+      if (!link.verified || !link.href || link.href !== candidate.path) continue;
+      const evidence = scoreNameMatch(target, link.name);
+      if (evidence) {
+        return {
+          score: 30 + evidence.score,
+          reason: `a verified navigation link "${link.name}" (on "${page.pageName}") points to this page and matches "${target}"`,
+        };
+      }
+    }
+  }
+  return undefined;
+}
+
 function scorePages(
   target: string,
   pages: PageMap[],
@@ -195,13 +220,10 @@ function scorePages(
       reasons.push(nameEvidence.reason);
     }
 
-    for (const heading of page.headings) {
-      const evidence = scoreNameMatch(target, heading);
-      if (evidence) {
-        score += 15;
-        reasons.push(`heading "${heading}" also matches "${target}"`);
-        break;
-      }
+    const navEvidence = findNavigationEvidence(target, page, pages);
+    if (navEvidence) {
+      score += navEvidence.score;
+      reasons.push(navEvidence.reason);
     }
 
     if (page.title && page.title !== page.pageName && scoreNameMatch(target, page.title)) {

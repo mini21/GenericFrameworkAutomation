@@ -185,4 +185,119 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     expect(mappings[1].resolved?.description).toBe("ui.fill('Reason', startDate)");
     expect(mappings[2].resolved?.description).toBe("ui.click('Submit Application')");
   });
+
+  test('a heading that merely mentions the target word is NOT navigation evidence (the reported false positive)', () => {
+    // Mirrors the real bug exactly: a Login page's <h1> tagline ("Employee
+    // Leave Management") contains the word "Leave", but Login has no
+    // navigational relationship to a Leave page at all — it must not be
+    // surfaced as a candidate just because of that.
+    const loginOnlyMap: ApplicationMap = {
+      application: 'fixture-app',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        {
+          path: '/login.html',
+          url: 'http://localhost:9999/login.html',
+          title: 'HRMS Login',
+          pageName: 'HRMS Login',
+          headings: ['Employee Leave Management'],
+          buttons: [{ role: 'button', name: 'Login', verified: VERIFIED }],
+          links: [],
+          inputs: [
+            { role: 'textbox', name: 'Username', verified: VERIFIED },
+            { role: 'textbox', name: 'Password', verified: VERIFIED },
+          ],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          ariaSnapshot: '',
+        },
+      ],
+    };
+    const steps: RawStep[] = [{ action: 'navigate', target: 'Leave', raw: 'Open Leave' }];
+    const [mapping] = mapRequirementToUI('hrms', loginOnlyMap, steps);
+    expect(mapping.resolved).toBeUndefined();
+    expect(mapping.diagnostics).toHaveLength(0); // zero evidence, not "best-guess" Login
+    expect(mapping.unmapped?.reason).toContain(
+      'No discovered page provides any evidence for "Leave"',
+    );
+    expect(mapping.unmapped?.reason).not.toContain('Login');
+  });
+
+  test('a verified link whose href actually points to the target page is real navigation evidence, unlike a heading match', () => {
+    const navMap: ApplicationMap = {
+      application: 'fixture-app',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        {
+          path: '/dashboard.html',
+          url: 'http://localhost:9999/dashboard.html',
+          title: 'Dashboard',
+          pageName: 'Dashboard',
+          headings: [],
+          buttons: [],
+          links: [
+            { role: 'link', name: 'Apply Leave', href: '/apply-leave.html', verified: VERIFIED },
+          ],
+          inputs: [],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          ariaSnapshot: '',
+        },
+        {
+          // Deliberately NOT named "Leave" anywhere — the only evidence this
+          // is the right page is the Dashboard's link actually pointing here.
+          path: '/apply-leave.html',
+          url: 'http://localhost:9999/apply-leave.html',
+          title: 'Untitled Form Page',
+          pageName: 'Untitled Form Page',
+          headings: [],
+          buttons: [],
+          links: [],
+          inputs: [],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          ariaSnapshot: '',
+        },
+      ],
+    };
+    const steps: RawStep[] = [{ action: 'navigate', target: 'Leave', raw: 'Open Leave' }];
+    const [mapping] = mapRequirementToUI('hrms', navMap, steps);
+    expect(mapping.confidence).toBe('HIGH');
+    expect(mapping.resolved?.detail).toBe('/apply-leave.html');
+  });
+
+  test('"Verify text containing Leave" is unaffected by page-navigation matching entirely', () => {
+    // Structural guarantee, not just a heuristic: verify steps never
+    // consult ApplicationMap.pages at all, so this false-positive class
+    // cannot apply to them regardless of wording overlap with "Open <page>".
+    const steps: RawStep[] = [
+      {
+        action: 'verify',
+        value: 'Leave application submitted',
+        raw: 'Verify "Leave application submitted" is shown',
+      },
+    ];
+    const [mapping] = mapRequirementToUI('hrms', MAP, steps);
+    expect(mapping.resolved).toEqual({
+      kind: 'verify',
+      description: 'expect(page.getByText("Leave application submitted")).toBeVisible()',
+      detail: 'Leave application submitted',
+    });
+  });
 });
