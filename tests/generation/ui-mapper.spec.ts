@@ -43,7 +43,7 @@ const MAP: ApplicationMap = {
       pageName: 'Apply Leave',
       headings: [],
       buttons: [
-        { role: 'button', name: 'Submit Application', verified: VERIFIED },
+        { role: 'button', name: 'Submit Application', isSubmit: true, verified: VERIFIED },
         { role: 'button', name: 'Cancel', verified: undefined },
       ],
       links: [],
@@ -112,7 +112,9 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     const steps: RawStep[] = [{ action: 'navigate', target: 'Reports', raw: 'Open Reports' }];
     const [mapping] = mapRequirementToUI('hrms', MAP, steps);
     expect(mapping.resolved).toBeUndefined();
-    expect(mapping.unmapped?.reason).toContain('No discovered, verified page matches "Reports"');
+    expect(mapping.unmapped?.reason).toContain(
+      'No discovered page provides any evidence for "Reports"',
+    );
   });
 
   test('scopes fill/click lookups to the most recently navigated page', () => {
@@ -149,5 +151,38 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
       description: 'expect(page.getByText("Done")).toBeVisible()',
       detail: 'Done',
     });
+  });
+
+  test('a bare "Open Leave" alone (no corroborating steps) is genuinely ambiguous between two same-named pages', () => {
+    // "Leave" matches both "Apply Leave" and "Leave History" by name alone
+    // — with nothing else to go on, this must ask, never guess.
+    const steps: RawStep[] = [{ action: 'navigate', target: 'Leave', raw: 'Open Leave' }];
+    const [mapping] = mapRequirementToUI('hrms', MAP, steps);
+    expect(mapping.confidence).toBe('MEDIUM');
+    expect(mapping.resolved).toBeUndefined();
+    expect(mapping.ambiguous?.candidates.map((c) => c.label).sort()).toEqual([
+      'Apply Leave',
+      'Leave History',
+    ]);
+  });
+
+  test('"Open Leave" resolves to "Apply Leave" (not "Leave History") once upcoming steps corroborate it — this is the reported bug', () => {
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Leave', raw: 'Open Leave' },
+      {
+        action: 'fill',
+        target: 'Reason',
+        value: '{{date:start}}',
+        raw: 'Select start and end dates',
+      },
+      { action: 'click', target: 'submit', raw: 'Submit the leave request' },
+    ];
+    const mappings = mapRequirementToUI('hrms', MAP, steps);
+
+    expect(mappings[0].confidence).toBe('HIGH');
+    expect(mappings[0].resolved?.detail).toBe('/apply-leave.html');
+    // currentPage was correctly updated to Apply Leave, so the next steps resolve too:
+    expect(mappings[1].resolved?.description).toBe("ui.fill('Reason', startDate)");
+    expect(mappings[2].resolved?.description).toBe("ui.click('Submit Application')");
   });
 });

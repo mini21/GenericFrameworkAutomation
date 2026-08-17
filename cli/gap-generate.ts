@@ -6,10 +6,14 @@ import {
   approveGeneration,
   rejectGeneration,
 } from '../src/core/generation/generation-orchestrator';
-import { formatFinalSummary } from '../src/core/generation/presentation';
+import { formatFinalSummary, formatDiagnostics } from '../src/core/generation/presentation';
 import { runCoverageReport } from '../src/core/generation/generated-test-validator';
 import { createLineReader } from './lib/line-reader';
-import { readRequirementInteractively, decideApproval } from './lib/generation-approval';
+import {
+  readRequirementInteractively,
+  decideApproval,
+  resolveAmbiguityInteractively,
+} from './lib/generation-approval';
 
 async function main(): Promise<void> {
   const { values } = parseArgs({
@@ -25,6 +29,7 @@ async function main(): Promise<void> {
       'max-pages': { type: 'string' },
       headless: { type: 'string' },
       approve: { type: 'boolean' },
+      diagnose: { type: 'boolean' },
     },
     strict: true,
   });
@@ -64,7 +69,13 @@ async function main(): Promise<void> {
     module: values.module,
     maxPages: values['max-pages'] ? Number(values['max-pages']) : undefined,
     headless: values.headless !== 'false',
+    resolveAmbiguity: resolveAmbiguityInteractively(readLine),
+    diagnose: Boolean(values.diagnose),
   });
+
+  if (outcome.diagnostics) {
+    process.stdout.write(formatDiagnostics(outcome.diagnostics));
+  }
 
   if (outcome.status === 'blocked') {
     process.stdout.write(`\nGAP: ${outcome.message}\n\n`);

@@ -17,7 +17,7 @@ import {
   lintFile,
   runGeneratedTest,
 } from './generated-test-validator';
-import { TestSpecification } from './generation-types';
+import { MappingCandidate, RawStep, StepMapping, TestSpecification } from './generation-types';
 
 export interface GenerationInput {
   application: string;
@@ -31,6 +31,17 @@ export interface GenerationInput {
   module?: string;
   maxPages?: number;
   headless?: boolean;
+  /**
+   * Called once per MEDIUM-confidence step to let a human pick a candidate —
+   * return the chosen candidate's `value` (re-parsed as the step's exact
+   * target, deterministically resolving it to HIGH), or undefined to leave
+   * it unresolved. Omit for non-interactive callers: any step still
+   * ambiguous after this is reported as `blocked`, listing every candidate,
+   * never guessed.
+   */
+  resolveAmbiguity?: (step: RawStep, candidates: MappingCandidate[]) => Promise<string | undefined>;
+  /** When true, every outcome (blocked or ready-for-approval) carries the full per-step scoring trail — see presentation.ts's formatDiagnostics. */
+  diagnose?: boolean;
 }
 
 export interface ValidationSummary {
@@ -40,13 +51,14 @@ export interface ValidationSummary {
 }
 
 export type GenerationOutcome =
-  | { status: 'blocked'; message: string }
+  | { status: 'blocked'; message: string; diagnostics?: StepMapping[] }
   | {
       status: 'ready-for-approval';
       spec: TestSpecification;
       filePath: string;
       stableTestId: string;
       validation: ValidationSummary;
+      diagnostics?: StepMapping[];
     };
 
 function mapPath(application: string): string {
@@ -133,13 +145,56 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     };
   }
 
-  const mappings = mapRequirementToUI(input.application, map, parsed.steps);
+  let mappings = mapRequirementToUI(input.application, map, parsed.steps);
+
+  // MEDIUM confidence: real evidence exists for more than one candidate.
+  // Never guessed — ask (if a resolver was given), and re-score with the
+  // human's exact choice substituted in as the step's target. That choice
+  // is one of the discovered names verbatim, so it re-scores as an exact
+  // match (HIGH) — this is re-mapping, not a second resolution path.
+  for (
+    let attempt = 0;
+    attempt < parsed.steps.length && mappings.some((m) => m.ambiguous);
+    attempt++
+  ) {
+    if (!input.resolveAmbiguity) break;
+    let choseSomething = false;
+    for (const m of mappings) {
+      if (!m.ambiguous) continue;
+      const chosen = await input.resolveAmbiguity(m.step, m.ambiguous.candidates);
+      if (chosen) {
+        m.step.target = chosen; // same object reference as parsed.steps[i] — mapRequirementToUI pushes `step` by reference
+        choseSomething = true;
+      }
+    }
+    if (!choseSomething) break;
+    mappings = mapRequirementToUI(input.application, map, parsed.steps);
+  }
+
+  const diagnostics = input.diagnose ? mappings : undefined;
+
+  const stillAmbiguous = mappings.filter((m) => m.ambiguous);
+  if (stillAmbiguous.length > 0) {
+    const lines = stillAmbiguous.map((m) => {
+      const options = (m.ambiguous?.candidates ?? [])
+        .map((c, i) => `      ${i + 1}. "${c.label}" (score ${c.score}: ${c.reasons.join('; ')})`)
+        .join('\n');
+      return `  - "${m.step.raw}":\n${options}`;
+    });
+    return {
+      status: 'blocked',
+      message: `${stillAmbiguous.length} step(s) matched more than one discovered candidate and need a human choice — re-run interactively to confirm:\n${lines.join('\n')}`,
+      diagnostics,
+    };
+  }
+
   const unmapped = mappings.filter((m) => m.unmapped);
   if (unmapped.length > 0) {
     const lines = unmapped.map((m) => `  - "${m.step.raw}": ${m.unmapped?.reason}`);
     return {
       status: 'blocked',
       message: `Unable to confidently map ${unmapped.length} step(s) to the discovered application:\n${lines.join('\n')}`,
+      diagnostics,
     };
   }
 
@@ -184,6 +239,7 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     filePath: generated.filePath,
     stableTestId: generated.stableTestId,
     validation: { typecheck, lint, execution },
+    diagnostics,
   };
 }
 
