@@ -71,6 +71,21 @@ function mapPath(application: string): string {
   );
 }
 
+/**
+ * `--start-path` always wins when given explicitly. Otherwise, if the
+ * supplied `--url` itself carries a path (e.g. `http://host/login.html`),
+ * that path is what the caller meant to start crawling from — discarding
+ * it and always crawling `/` is what caused Generate to hit a 404 on
+ * apps with no root route, even though the user's URL pointed straight
+ * at a real page. A bare-origin URL (no path) falls back to the same
+ * generic `/` default `gap:discover` itself uses. Never app-specific.
+ */
+export function resolveStartPath(url: string, explicitStartPath: string | undefined): string {
+  if (explicitStartPath) return explicitStartPath;
+  const { pathname } = new URL(url);
+  return pathname && pathname !== '/' ? pathname : '/';
+}
+
 /** Total buttons/inputs/links/selects/checkboxes discovered across every page — the generic, app-agnostic signal that a crawl actually found something usable. */
 function totalElementCount(map: ApplicationMap): number {
   return map.pages.reduce(
@@ -98,7 +113,7 @@ async function loadOrDiscoverMap(
       const map = await crawlApplication(context, {
         application: input.application,
         baseUrl: input.url,
-        startPath: input.startPath ?? '/',
+        startPath: resolveStartPath(input.url, input.startPath),
         maxPages: input.maxPages ?? 15,
       });
       if (totalElementCount(map) === 0) {
