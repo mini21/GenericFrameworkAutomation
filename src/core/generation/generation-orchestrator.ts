@@ -71,6 +71,20 @@ function mapPath(application: string): string {
   );
 }
 
+/** Total buttons/inputs/links/selects/checkboxes discovered across every page — the generic, app-agnostic signal that a crawl actually found something usable. */
+function totalElementCount(map: ApplicationMap): number {
+  return map.pages.reduce(
+    (sum, page) =>
+      sum +
+      page.buttons.length +
+      page.inputs.length +
+      page.links.length +
+      page.selects.length +
+      page.checkboxes.length,
+    0,
+  );
+}
+
 async function loadOrDiscoverMap(
   input: GenerationInput,
 ): Promise<ApplicationMap | { error: string }> {
@@ -87,6 +101,15 @@ async function loadOrDiscoverMap(
         startPath: input.startPath ?? '/',
         maxPages: input.maxPages ?? 15,
       });
+      if (totalElementCount(map) === 0) {
+        return {
+          error:
+            `Discovery found ${map.pages.length} page(s) but zero buttons/inputs/links/selects/checkboxes ` +
+            `across all of them (e.g. "${map.pages[0]?.pageName}" at ${map.pages[0]?.path}) — this usually ` +
+            'means the start path 404s or the app needs authentication. Not overwriting any existing map. ' +
+            'Pass --start-path (e.g. /dashboard.html) and/or --storage-state for an authenticated crawl.',
+        };
+      }
       writeApplicationMap(map);
       return map;
     } finally {
