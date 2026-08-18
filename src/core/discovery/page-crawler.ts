@@ -1,6 +1,6 @@
 import { Page } from 'playwright';
 import { LocatorResolver } from '../locator/locator-resolver';
-import { DiscoveredElement, PageMap } from './discovery-types';
+import { ConfirmationRegion, DiscoveredElement, PageMap } from './discovery-types';
 
 // Matches one Locator.ariaSnapshot() line, e.g. `- button "Login"` or
 // `- heading "Employee Leave Management" [level=1]` — the name is optional
@@ -131,6 +131,27 @@ async function collectLinkHrefs(page: Page): Promise<Record<string, string>> {
   return hrefsByName;
 }
 
+const CONFIRMATION_ROLES = ['alert', 'status', 'log'] as const;
+
+// ARIA live regions are frequently empty in the initial DOM (their content
+// is injected only after an action like a form submit), so they never show
+// up via parseAriaSnapshot's role+name catalog below — a dedicated
+// role-selector pass is the only way to see them at discovery time at all.
+async function collectConfirmationRegions(page: Page): Promise<ConfirmationRegion[]> {
+  const selector = CONFIRMATION_ROLES.map((role) => `[role="${role}"]`).join(', ');
+  const roles = await page
+    .locator(selector)
+    .evaluateAll((elements) => elements.map((el) => el.getAttribute('role') || ''));
+
+  const counts = new Map<string, number>();
+  for (const role of roles) counts.set(role, (counts.get(role) ?? 0) + 1);
+
+  return CONFIRMATION_ROLES.filter((role) => counts.has(role)).map((role) => ({
+    role,
+    unique: counts.get(role) === 1,
+  }));
+}
+
 /**
  * Maps a single already-navigated page: what's on it, categorized by ARIA
  * role, with every click/fill-shaped element re-verified through the
@@ -141,19 +162,21 @@ async function collectLinkHrefs(page: Page): Promise<Record<string, string>> {
  * no app-specific selectors, just what any HTML form already exposes.
  */
 export async function mapPage(page: Page): Promise<PageMap> {
-  const [title, ariaSnapshot, testIds, formFieldEvidence, linkHrefsByName] = await Promise.all([
-    page.title(),
-    page.locator('body').ariaSnapshot(),
-    page
-      .locator('[data-testid]')
-      .evaluateAll((elements) =>
-        elements
-          .map((el) => el.getAttribute('data-testid'))
-          .filter((value): value is string => Boolean(value)),
-      ),
-    collectFormFieldEvidence(page),
-    collectLinkHrefs(page),
-  ]);
+  const [title, ariaSnapshot, testIds, formFieldEvidence, linkHrefsByName, confirmationRegions] =
+    await Promise.all([
+      page.title(),
+      page.locator('body').ariaSnapshot(),
+      page
+        .locator('[data-testid]')
+        .evaluateAll((elements) =>
+          elements
+            .map((el) => el.getAttribute('data-testid'))
+            .filter((value): value is string => Boolean(value)),
+        ),
+      collectFormFieldEvidence(page),
+      collectLinkHrefs(page),
+      collectConfirmationRegions(page),
+    ]);
 
   const resolver = new LocatorResolver(page);
 
@@ -231,6 +254,7 @@ export async function mapPage(page: Page): Promise<PageMap> {
     forms,
     navigation,
     testIds: testIds.slice(0, 20),
+    confirmationRegions,
     ariaSnapshot,
   };
 }

@@ -34,6 +34,7 @@ const MAP: ApplicationMap = {
       forms: 0,
       navigation: 0,
       testIds: [],
+      confirmationRegions: [{ role: 'alert', unique: true }],
       ariaSnapshot: '',
     },
   ],
@@ -76,6 +77,26 @@ test.describe(`Generation — test specification builder ${TAGS.SMOKE}`, () => {
     const spec = buildTestSpecification(parsed, mappings, { application: 'hrms', module: 'leave' });
     expect(spec.preconditions).toEqual(['User is authenticated']);
     expect(spec.expectedResults).toEqual(['Done']);
+  });
+
+  test('a bare (unquoted) verify step that resolves against a discovered confirmation region still produces a real expectedResults entry', () => {
+    const parsed = parseRequirement(
+      'Employee should be able to apply leave.\nOpen Apply Leave.\nVerify confirmation is displayed.',
+    );
+    const mappings = mapRequirementToUI('hrms', MAP, parsed.steps);
+    const spec = buildTestSpecification(parsed, mappings, { application: 'hrms', module: 'leave' });
+    expect(mappings[1].resolved?.detail).toBe('alert'); // sanity: it actually resolved
+    expect(spec.expectedResults).toEqual(['confirmation is displayed']);
+  });
+
+  test('a bare verify step that could NOT be mapped does not appear in expectedResults at all', () => {
+    const parsed = parseRequirement(
+      'Employee should be able to apply leave.\nVerify confirmation.',
+    );
+    const mappings = mapRequirementToUI('hrms', MAP, parsed.steps);
+    const spec = buildTestSpecification(parsed, mappings, { application: 'hrms', module: 'leave' });
+    expect(mappings[0].resolved).toBeUndefined(); // no page context — genuinely unmapped
+    expect(spec.expectedResults).toEqual([]);
   });
 
   test('defaults test type to "functional"', () => {

@@ -34,6 +34,7 @@ const MAP: ApplicationMap = {
       forms: 0,
       navigation: 0,
       testIds: [],
+      confirmationRegions: [],
       ariaSnapshot: '',
     },
     {
@@ -57,6 +58,7 @@ const MAP: ApplicationMap = {
       forms: 0,
       navigation: 0,
       testIds: [],
+      confirmationRegions: [{ role: 'alert', unique: true }],
       ariaSnapshot: '',
     },
     {
@@ -74,6 +76,7 @@ const MAP: ApplicationMap = {
       forms: 0,
       navigation: 0,
       testIds: [],
+      confirmationRegions: [],
       ariaSnapshot: '',
     },
   ],
@@ -137,10 +140,134 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     expect(mappings[1].unmapped?.reason).toContain('not currently verified as uniquely fillable');
   });
 
-  test('a verify step with no expected text is reported unmapped rather than asserting nothing', () => {
+  test('a bare verify step with no page context yet is reported unmapped rather than asserting nothing', () => {
     const steps: RawStep[] = [{ action: 'verify', raw: 'Verify something' }];
     const [mapping] = mapRequirementToUI('hrms', MAP, steps);
-    expect(mapping.unmapped?.reason).toContain('no expected text');
+    expect(mapping.resolved).toBeUndefined();
+    expect(mapping.unmapped?.reason).toContain('No page context');
+  });
+
+  test('MISSING VERIFICATION: a bare verify on a page with no discovered confirmation/status region is reported unmapped, not silently passed', () => {
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Leave History', raw: 'Open Leave History' },
+      { action: 'verify', raw: 'Verify confirmation is displayed' },
+    ];
+    const mappings = mapRequirementToUI('hrms', MAP, steps);
+    expect(mappings[1].resolved).toBeUndefined();
+    expect(mappings[1].confidence).toBe('LOW');
+    expect(mappings[1].unmapped?.reason).toContain(
+      'No discovered confirmation/status element (ARIA "alert"/"status"/"log" region)',
+    );
+  });
+
+  test('ACTION + VERIFICATION: "Verify confirmation is displayed" resolves to a real assertion against the discovered alert region', () => {
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Apply Leave', raw: 'Open Apply Leave' },
+      { action: 'click', target: 'submit', raw: 'Submit the leave request' },
+      { action: 'verify', raw: 'Verify confirmation is displayed' },
+    ];
+    const mappings = mapRequirementToUI('hrms', MAP, steps);
+    expect(mappings[2].confidence).toBe('HIGH');
+    expect(mappings[2].resolved).toEqual({
+      kind: 'verify',
+      strategy: 'role',
+      confidence: 'HIGH',
+      resolvedLocator: "getByRole('alert')",
+      description: "expect(page.getByRole('alert')).toBeVisible()",
+      detail: 'alert',
+    });
+  });
+
+  test('ACTION ONLY: "Click Submit" alone generates no assertion — a click step is never treated as a verify', () => {
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Apply Leave', raw: 'Open Apply Leave' },
+      { action: 'click', target: 'submit', raw: 'Submit the leave request' },
+    ];
+    const mappings = mapRequirementToUI('hrms', MAP, steps);
+    expect(mappings.some((m) => m.step.action === 'verify')).toBe(false);
+    expect(mappings.every((m) => m.resolved?.kind !== 'verify')).toBe(true);
+  });
+
+  test('AMBIGUOUS VERIFICATION: multiple discovered confirmation regions are asked about, never guessed', () => {
+    const ambiguousMap: ApplicationMap = {
+      application: 'fixture-app',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        {
+          path: '/checkout.html',
+          url: 'http://localhost:9999/checkout.html',
+          title: 'Checkout',
+          pageName: 'Checkout',
+          headings: [],
+          buttons: [],
+          links: [],
+          inputs: [],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          confirmationRegions: [
+            { role: 'alert', unique: true },
+            { role: 'status', unique: true },
+          ],
+          ariaSnapshot: '',
+        },
+      ],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Checkout', raw: 'Open Checkout' },
+      { action: 'verify', raw: 'Verify confirmation is displayed' },
+    ];
+    const mappings = mapRequirementToUI('hrms', ambiguousMap, steps);
+    expect(mappings[1].confidence).toBe('MEDIUM');
+    expect(mappings[1].resolved).toBeUndefined();
+    expect(mappings[1].ambiguous?.candidates.map((c) => c.value).sort()).toEqual([
+      'alert',
+      'status',
+    ]);
+  });
+
+  test('a human disambiguation choice for an ambiguous verify re-resolves to that exact region at HIGH confidence', () => {
+    const ambiguousMap: ApplicationMap = {
+      application: 'fixture-app',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        {
+          path: '/checkout.html',
+          url: 'http://localhost:9999/checkout.html',
+          title: 'Checkout',
+          pageName: 'Checkout',
+          headings: [],
+          buttons: [],
+          links: [],
+          inputs: [],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          confirmationRegions: [
+            { role: 'alert', unique: true },
+            { role: 'status', unique: true },
+          ],
+          ariaSnapshot: '',
+        },
+      ],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Checkout', raw: 'Open Checkout' },
+      { action: 'verify', target: 'status', raw: 'Verify confirmation is displayed' },
+    ];
+    const mappings = mapRequirementToUI('hrms', ambiguousMap, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].resolved?.detail).toBe('status');
   });
 
   test('a verify step with quoted text maps to a getByText assertion, not LocatorResolver', () => {
@@ -220,6 +347,7 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
           forms: 0,
           navigation: 0,
           testIds: [],
+          confirmationRegions: [],
           ariaSnapshot: '',
         },
       ],
@@ -263,6 +391,7 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
           forms: 0,
           navigation: 0,
           testIds: [],
+          confirmationRegions: [],
           ariaSnapshot: '',
         },
       ],
@@ -299,6 +428,7 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
           forms: 0,
           navigation: 0,
           testIds: [],
+          confirmationRegions: [],
           ariaSnapshot: '',
         },
         {
@@ -316,6 +446,7 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
           forms: 0,
           navigation: 0,
           testIds: [],
+          confirmationRegions: [],
           ariaSnapshot: '',
         },
       ],
@@ -354,6 +485,7 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
           forms: 0,
           navigation: 0,
           testIds: [],
+          confirmationRegions: [],
           ariaSnapshot: '',
         },
         {
@@ -373,6 +505,7 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
           forms: 0,
           navigation: 0,
           testIds: [],
+          confirmationRegions: [],
           ariaSnapshot: '',
         },
       ],

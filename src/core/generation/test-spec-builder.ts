@@ -77,11 +77,14 @@ export function buildTestSpecification(
     ? ['User is authenticated']
     : [];
   const expectedResults = mappings
-    .filter(
-      (m): m is StepMapping & { step: { value: string } } =>
-        m.step.action === 'verify' && Boolean(m.step.value),
-    )
-    .map((m) => m.step.value);
+    .filter((m) => m.step.action === 'verify' && Boolean(m.resolved))
+    .map(
+      (m) =>
+        // A quoted expected text is precise, so it's used verbatim (unchanged
+        // from before). A bare verify has no invented text to fall back to —
+        // its own raw wording (never rewritten) is the honest description.
+        m.step.value ?? m.step.raw.replace(/^(?:verify|check|confirm)\s+/i, '').replace(/\.$/, ''),
+    );
 
   return {
     requirementId,

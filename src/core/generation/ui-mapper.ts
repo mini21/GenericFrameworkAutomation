@@ -104,30 +104,97 @@ function mapLogin(application: string, step: RawStep, map: ApplicationMap): Step
 }
 
 // ---------------------------------------------------------------------------
-// Verify (unchanged — the expected text comes from the requirement itself,
-// there's nothing on the ApplicationMap to score it against).
+// Verify — a quoted expected text is asserted directly (the text comes from
+// the requirement itself, nothing to score against the ApplicationMap). A
+// BARE verify ("Verify confirmation is displayed", no quotes) has no text
+// to invent, so it's resolved instead against a discovered ARIA
+// "alert"/"status"/"log" region on the current page — the generic,
+// app-agnostic signal for "where this app announces a result" — never a
+// guessed word/element. See page-crawler.ts's collectConfirmationRegions.
 // ---------------------------------------------------------------------------
 
-function mapVerify(step: RawStep): StepMapping {
-  if (!step.value) {
+function mapVerify(step: RawStep, currentPage: PageMap | undefined): StepMapping {
+  if (step.value) {
     return {
       step,
-      confidence: 'LOW',
-      unmapped: {
-        reason: 'Verify step has no expected text — state it in quotes, e.g. verify "Success".',
+      confidence: 'HIGH',
+      resolved: {
+        kind: 'verify',
+        description: `expect(page.getByText("${step.value}")).toBeVisible()`,
+        detail: step.value,
       },
       diagnostics: [],
     };
   }
+
+  if (!currentPage) {
+    return {
+      step,
+      confidence: 'LOW',
+      unmapped: {
+        reason:
+          'No page context to look for a confirmation/status element on — this verify step was ' +
+          'reached before any page was successfully opened.',
+      },
+      diagnostics: [],
+    };
+  }
+
+  const regions = currentPage.confirmationRegions;
+  const diagnostics: MappingCandidate[] = regions.map((r) => ({
+    label: `${r.role} region`,
+    value: r.role,
+    score: r.unique ? 100 : 40,
+    reasons: [
+      r.unique
+        ? `a unique, discovered "${r.role}"-role live region on "${currentPage.pageName}" — the generic ARIA signal an app uses to announce a result`
+        : `a "${r.role}"-role live region exists on "${currentPage.pageName}" but is not uniquely identifiable`,
+    ],
+    selected: false,
+  }));
+
+  const resolveRole = (role: string): StepMapping => {
+    diagnostics.forEach((d) => (d.selected = d.value === role));
+    return {
+      step,
+      confidence: 'HIGH',
+      resolved: {
+        kind: 'verify',
+        strategy: 'role',
+        confidence: 'HIGH',
+        resolvedLocator: `getByRole('${role}')`,
+        description: `expect(page.getByRole('${role}')).toBeVisible()`,
+        detail: role,
+      },
+      diagnostics,
+    };
+  };
+
+  // A human's disambiguation choice re-parses back in as step.target —
+  // same mechanism generation-orchestrator.ts already uses for every other
+  // step kind's MEDIUM-confidence retry.
+  if (step.target && regions.some((r) => r.role === step.target && r.unique)) {
+    return resolveRole(step.target);
+  }
+
+  const uniqueRegions = regions.filter((r) => r.unique);
+  if (uniqueRegions.length === 1) {
+    return resolveRole(uniqueRegions[0].role);
+  }
+  if (regions.length > 1) {
+    return { step, confidence: 'MEDIUM', ambiguous: { candidates: diagnostics }, diagnostics };
+  }
+
+  const [only] = regions;
   return {
     step,
-    confidence: 'HIGH',
-    resolved: {
-      kind: 'verify',
-      description: `expect(page.getByText("${step.value}")).toBeVisible()`,
-      detail: step.value,
+    confidence: 'LOW',
+    unmapped: {
+      reason: only
+        ? `A "${only.role}"-role live region exists on "${currentPage.pageName}" but is not uniquely identifiable — cannot safely assert against it.`
+        : `No discovered confirmation/status element (ARIA "alert"/"status"/"log" region) found on "${currentPage.pageName}" to verify against.`,
     },
-    diagnostics: [],
+    diagnostics,
   };
 }
 
@@ -428,7 +495,7 @@ export function mapRequirementToUI(
       continue;
     }
     if (step.action === 'verify') {
-      mappings.push(mapVerify(step));
+      mappings.push(mapVerify(step, currentPage));
       continue;
     }
 

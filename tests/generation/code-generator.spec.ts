@@ -162,6 +162,31 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
     );
   });
 
+  test('a role-resolved verify step (bare "Verify confirmation is displayed") generates a getByRole assertion, not getByText', () => {
+    const roleVerifySpec: TestSpecification = {
+      ...SPEC,
+      steps: [
+        ...SPEC.steps.slice(0, -1),
+        {
+          step: { action: 'verify', raw: 'Verify confirmation is displayed' },
+          confidence: 'HIGH',
+          diagnostics: [],
+          resolved: {
+            kind: 'verify',
+            strategy: 'role',
+            confidence: 'HIGH',
+            resolvedLocator: "getByRole('alert')",
+            description: "expect(page.getByRole('alert')).toBeVisible()",
+            detail: 'alert',
+          },
+        },
+      ],
+    };
+    const { code } = generateSpecFile(roleVerifySpec);
+    expect(code).toContain('await expect(page.getByRole("alert")).toBeVisible();');
+    expect(code).not.toContain('getByText');
+  });
+
   test('the next generated index is the highest existing index + 1, not a count — surviving gaps from deleted files', () => {
     // A count-based index collides the moment an earlier file is deleted
     // (e.g. -01 and -03 exist, -02 was removed: count=2 -> "next" index 3

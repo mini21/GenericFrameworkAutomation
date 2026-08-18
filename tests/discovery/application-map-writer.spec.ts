@@ -33,6 +33,7 @@ const SAMPLE_MAP: ApplicationMap = {
       forms: 0,
       navigation: 0,
       testIds: [],
+      confirmationRegions: [],
       ariaSnapshot: '- button "Login"',
     },
   ],

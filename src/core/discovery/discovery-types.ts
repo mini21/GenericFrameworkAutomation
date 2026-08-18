@@ -23,6 +23,21 @@ export interface DiscoveredElement {
   };
 }
 
+/**
+ * An ARIA live-region landmark (`role="alert"`/`"status"`/`"log"`) —
+ * the generic, app-agnostic W3C signal for "this is where the app
+ * announces a transient result/confirmation to the user", independent of
+ * any specific wording. Captured even when empty at discovery time
+ * (its content typically only appears after an action like a form
+ * submit), which is why it's a distinct DOM-structural fact rather than
+ * a `DiscoveredElement` — those require a non-empty accessible name.
+ */
+export interface ConfirmationRegion {
+  role: 'alert' | 'status' | 'log';
+  /** True only when exactly one element with this role exists on the page — the safety gate before ever generating an assertion against it. */
+  unique: boolean;
+}
+
 export interface PageMap {
   /** Pathname only (e.g. "/login.html"), used for crawl dedup and display. */
   path: string;
@@ -47,6 +62,8 @@ export interface PageMap {
   navigation: number;
   /** Every distinct data-testid attribute present on the page at scan time, capped. */
   testIds: string[];
+  /** ARIA live-region landmarks found on the page — see ConfirmationRegion. */
+  confirmationRegions: ConfirmationRegion[];
   /** Raw Locator.ariaSnapshot() output for the page, kept for debugging/future use. */
   ariaSnapshot: string;
 }

@@ -81,4 +81,23 @@ test.describe(`Generation — requirement parser ${TAGS.SMOKE}`, () => {
     const { testNameHint } = parseRequirement('Manager should be able to reject leave.');
     expect(testNameHint).toBe('manager can reject leave');
   });
+
+  test('a bare "Verify ..." sentence with no quoted text is recognized as a verify step, not silently dropped', () => {
+    const { steps } = parseRequirement(
+      'Login as employee.\nSubmit the leave request.\nVerify confirmation is displayed.',
+    );
+    expect(steps).toEqual([
+      { action: 'login', target: 'employee', raw: 'Login as employee' },
+      { action: 'click', target: 'submit', raw: 'Submit the leave request' },
+      { action: 'verify', raw: 'Verify confirmation is displayed' },
+    ]);
+  });
+
+  test('other bare verify phrasings ("Verify confirmation.", "Check status is Approved") are also recognized, not dropped', () => {
+    const { steps: shortForm } = parseRequirement('Verify confirmation.');
+    expect(shortForm).toEqual([{ action: 'verify', raw: 'Verify confirmation' }]);
+
+    const { steps: checkForm } = parseRequirement('Check status is Approved.');
+    expect(checkForm).toEqual([{ action: 'verify', raw: 'Check status is Approved' }]);
+  });
 });

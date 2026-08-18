@@ -114,9 +114,14 @@ function stepLines(step: StepMapping): string[] {
     case 'click':
       return [`await ui.click(${JSON.stringify(resolved.detail ?? '')});`];
     case 'verify':
-      return [
-        `await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`,
-      ];
+      // A quoted expected text asserts by text; a bare verify resolved
+      // against a discovered ARIA live region (see ui-mapper.ts's
+      // mapVerify) asserts by role instead — resolved.strategy === 'role'
+      // is the marker distinguishing the two, same field LocatorResolver
+      // itself already uses for fill/click steps.
+      return resolved.strategy === 'role'
+        ? [`await expect(page.getByRole(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`]
+        : [`await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`];
     default:
       throw new Error(`Unknown resolved step kind: ${String((resolved as { kind: string }).kind)}`);
   }
