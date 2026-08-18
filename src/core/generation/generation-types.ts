@@ -14,13 +14,22 @@ export interface RawStep {
 }
 
 export interface ResolvedStep {
-  kind: 'login-helper' | 'login-inline' | 'navigate' | 'click' | 'fill' | 'verify';
+  /**
+   * `verify` = a UI-observable oracle (text or a discovered ARIA live
+   * region) — the default and only kind for a plain business/UI
+   * requirement. `verify-api` is a DISTINCT, deliberately separate kind:
+   * only produced when the requirement text explicitly asks for a network
+   * outcome ("Verify API returns 201") — never auto-injected for a bare
+   * "Verify confirmation", so a UI requirement's oracle always stays the
+   * UI's own observable result, never an unrelated network status.
+   */
+  kind: 'login-helper' | 'login-inline' | 'navigate' | 'click' | 'fill' | 'verify' | 'verify-api';
   description: string;
   /** Present when this step resolved to a specific discovered element re-verified via LocatorResolver. */
   strategy?: LocatorStrategy;
   confidence?: Confidence;
   resolvedLocator?: string;
-  /** Path to navigate to (`navigate`), or the fill/verify value to use verbatim or as a `{{date:*}}` marker (see code-generator.ts). */
+  /** Path to navigate to (`navigate`), the fill/verify value (verbatim or a `{{date:*}}` marker), or the expected HTTP status code (`verify-api`) — see code-generator.ts. */
   detail?: string;
 }
 

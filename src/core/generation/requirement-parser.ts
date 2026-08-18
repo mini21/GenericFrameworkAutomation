@@ -46,6 +46,14 @@ const SELECT_QUOTED_PATTERN = /^select\s+"([^"]+)"\s+(?:for|in|from)\s+(.+)$/i;
 const SUBMIT_REQUEST_PATTERN = /^submit\s+the\s+(?:\S+\s+)*?(?:request|form|application)$/i;
 const CLICK_PATTERN = /^(?:click|submit|press)\s+(?:the\s+)?(.+)$/i;
 const VERIFY_PATTERN = /^(?:verify|check|confirm)\b.*?"([^"]+)"/i;
+// An EXPLICIT network/API assertion — "Verify API returns 201", "Verify
+// POST /leave returns 201", "Verify API response is 201". Deliberately
+// its own pattern, checked BEFORE the generic bare-verify one below: a
+// plain UI requirement's oracle must never silently become a network
+// check, so this only fires when the requirement itself names an HTTP
+// status code — never auto-injected, never guessed at.
+const API_STATUS_PATTERN =
+  /^verify\s+(?:the\s+)?(?:(?:get|post|put|patch|delete)\s+\S+\s+)?(?:api\s+)?(?:response\s+)?(?:returns|is)\s+(\d{3})\b/i;
 // A verify-shaped sentence with no quoted text — "Verify confirmation is
 // displayed", "Verify confirmation.", "Verify order is created". Recognized
 // as a real verify step (not silently dropped), but with no `value` — the
@@ -105,6 +113,8 @@ export function parseRequirement(text: string): ParsedRequirement {
       steps.push({ action: 'click', target: 'submit', raw: sentence });
     } else if ((match = VERIFY_PATTERN.exec(sentence))) {
       steps.push({ action: 'verify', value: match[1], raw: sentence });
+    } else if ((match = API_STATUS_PATTERN.exec(sentence))) {
+      steps.push({ action: 'verify', value: `{{api:${match[1]}}}`, raw: sentence });
     } else if (BARE_VERIFY_PATTERN.test(sentence)) {
       steps.push({ action: 'verify', raw: sentence });
     } else if ((match = NAVIGATE_PATTERN.exec(sentence))) {

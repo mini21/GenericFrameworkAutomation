@@ -133,4 +133,29 @@ test.describe(`Generation — requirement parser ${TAGS.SMOKE}`, () => {
       },
     ]);
   });
+
+  test('an EXPLICIT network/API assertion ("Verify API returns 201", "Verify POST /leave returns 201") is recognized distinctly from a plain UI verify', () => {
+    const { steps: generic } = parseRequirement('Verify API returns 201.');
+    expect(generic).toEqual([
+      { action: 'verify', value: '{{api:201}}', raw: 'Verify API returns 201' },
+    ]);
+
+    const { steps: withMethodAndPath } = parseRequirement('Verify POST /leave returns 201.');
+    expect(withMethodAndPath).toEqual([
+      { action: 'verify', value: '{{api:201}}', raw: 'Verify POST /leave returns 201' },
+    ]);
+
+    const { steps: responseIs } = parseRequirement('Verify API response is 201.');
+    expect(responseIs).toEqual([
+      { action: 'verify', value: '{{api:201}}', raw: 'Verify API response is 201' },
+    ]);
+  });
+
+  test('a plain "Verify confirmation" / "Verify status is Approved" never gets mistaken for an API assertion (no digits, no marker)', () => {
+    const { steps: confirmation } = parseRequirement('Verify confirmation is displayed.');
+    expect(confirmation).toEqual([{ action: 'verify', raw: 'Verify confirmation is displayed' }]);
+
+    const { steps: statusApproved } = parseRequirement('Verify status is Approved.');
+    expect(statusApproved).toEqual([{ action: 'verify', raw: 'Verify status is Approved' }]);
+  });
 });

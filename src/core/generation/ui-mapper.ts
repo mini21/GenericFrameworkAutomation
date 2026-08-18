@@ -113,7 +113,28 @@ function mapLogin(application: string, step: RawStep, map: ApplicationMap): Step
 // guessed word/element. See page-crawler.ts's collectConfirmationRegions.
 // ---------------------------------------------------------------------------
 
+const API_STATUS_MARKER = /^\{\{api:(\d{3})\}\}$/;
+
 function mapVerify(step: RawStep, currentPage: PageMap | undefined): StepMapping {
+  // An EXPLICIT network/API assertion, from requirement-parser.ts's
+  // API_STATUS_PATTERN — only ever produced when the requirement itself
+  // names an HTTP status code, never inferred. A distinct `kind` (not
+  // `verify`) so a plain UI verify's codegen path can never accidentally
+  // pick up a network dependency — see code-generator.ts.
+  const apiMatch = step.value ? API_STATUS_MARKER.exec(step.value) : null;
+  if (apiMatch) {
+    return {
+      step,
+      confidence: 'HIGH',
+      resolved: {
+        kind: 'verify-api',
+        description: `expect(submitResponse.status()).toBe(${apiMatch[1]})`,
+        detail: apiMatch[1],
+      },
+      diagnostics: [],
+    };
+  }
+
   if (step.value) {
     return {
       step,

@@ -187,14 +187,13 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
     expect(code).not.toContain('getByText');
   });
 
-  test('a submit-marker click generates a captured HTTP response, and a following bare (role) verify asserts it succeeded — not just that an alert rendered', () => {
-    // Regression for a real defect: HRMS's single #result-message
-    // role="alert" reports BOTH success ("Leave application submitted
-    // successfully") and failure ("Requested dates overlap...") through
-    // the identical element. `getByRole('alert').toBeVisible()` alone is
-    // satisfied by either — a generated test could silently "pass" on a
-    // server-side rejection. The submit's own response.ok() is a signal
-    // no wording guess can fake.
+  test('a plain UI verify (role-based, bare) never captures or depends on the submit response — the UI is its own oracle', () => {
+    // A bare "Verify confirmation is displayed" is a UI business
+    // requirement's oracle: what the UI shows, not an unrelated network
+    // status. Capturing/asserting on submitResponse here would fail the
+    // test on an irrelevant non-2xx even when the UI itself is fine to
+    // assert against directly — see the 'verify-api' test below for the
+    // one case that legitimately does depend on the network.
     const roleVerifySpec: TestSpecification = {
       ...SPEC,
       steps: [
@@ -215,15 +214,40 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
       ],
     };
     const { code } = generateSpecFile(roleVerifySpec);
+    expect(code).not.toContain('submitResponse');
+    expect(code).not.toContain('waitForResponse');
+    expect(code).toContain('await ui.click("Submit Application");');
+    expect(code).toContain('await expect(page.getByRole("alert")).toBeVisible();');
+  });
+
+  test('an EXPLICIT "verify-api" step (requirement asked for a network status) does capture the submit response and assert its status', () => {
+    // The one case that legitimately depends on the network — but only
+    // ever reached when the requirement text itself named an HTTP status
+    // (requirement-parser.ts's API_STATUS_PATTERN), never auto-injected
+    // for a plain UI verify.
+    const apiVerifySpec: TestSpecification = {
+      ...SPEC,
+      steps: [
+        ...SPEC.steps.slice(0, -1),
+        {
+          step: { action: 'verify', value: '{{api:201}}', raw: 'Verify API returns 201' },
+          confidence: 'HIGH',
+          diagnostics: [],
+          resolved: {
+            kind: 'verify-api',
+            description: 'expect(submitResponse.status()).toBe(201)',
+            detail: '201',
+          },
+        },
+      ],
+    };
+    const { code } = generateSpecFile(apiVerifySpec);
     expect(code).toContain('const [submitResponse] = await Promise.all([');
     expect(code).toContain(
       "page.waitForResponse((response) => response.request().method() !== 'GET'),",
     );
-    expect(code).toContain('expect(submitResponse.ok()).toBe(true);');
-    // The response assertion must come BEFORE the visibility check, and
-    // the click must come BEFORE the response assertion.
-    expect(code.indexOf('ui.click(')).toBeLessThan(code.indexOf('submitResponse.ok()'));
-    expect(code.indexOf('submitResponse.ok()')).toBeLessThan(code.indexOf('getByRole("alert")'));
+    expect(code).toContain('expect(submitResponse.status()).toBe(201);');
+    expect(code.indexOf('ui.click(')).toBeLessThan(code.indexOf('submitResponse.status()'));
   });
 
   test('a quoted-text verify is unaffected — no response capture, since exact expected text already discriminates success from failure', () => {

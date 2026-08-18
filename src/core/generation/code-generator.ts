@@ -57,8 +57,12 @@ function usesDateMarkers(steps: StepMapping[]): boolean {
 
 /**
  * Only capture the submit action's HTTP response when there's exactly one
- * submit click AND a role-based (bare) verify in the spec to consume it —
- * anything else (a quoted-text verify, no verify at all, or more than one
+ * submit click AND an EXPLICIT `verify-api` step in the spec to consume it
+ * — i.e. only when the requirement itself asked for a network outcome
+ * ("Verify API returns 201"). A plain UI verify (`kind: 'verify'`, role- or
+ * text-based) never triggers this: a UI business requirement's oracle is
+ * the UI's own observable result, not an unrelated network status — see
+ * ui-mapper.ts's mapVerify. Anything else (no verify-api, or more than one
  * submit) falls back to a plain click, so a `submitResponse` variable is
  * never declared and left unused (which would fail the generated file's
  * own lint step) and never redeclared (a real submit-then-submit flow).
@@ -67,10 +71,8 @@ function needsSubmitResponseCapture(steps: StepMapping[]): boolean {
   const submitClicks = steps.filter(
     (s) => s.resolved?.kind === 'click' && s.step.target === 'submit',
   );
-  const hasRoleVerify = steps.some(
-    (s) => s.resolved?.kind === 'verify' && s.resolved.strategy === 'role',
-  );
-  return submitClicks.length === 1 && hasRoleVerify;
+  const hasApiVerify = steps.some((s) => s.resolved?.kind === 'verify-api');
+  return submitClicks.length === 1 && hasApiVerify;
 }
 
 function loginHelperDetail(
@@ -165,24 +167,27 @@ function stepLines(
       }
       return [`await ui.click(${JSON.stringify(resolved.detail ?? '')});`];
     case 'verify': {
-      // A quoted expected text asserts by text; a bare verify resolved
-      // against a discovered ARIA live region (see ui-mapper.ts's
-      // mapVerify) asserts by role instead — resolved.strategy === 'role'
-      // is the marker distinguishing the two, same field LocatorResolver
-      // itself already uses for fill/click steps.
-      if (resolved.strategy !== 'role') {
-        return [
-          `await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`,
-        ];
+      // A UI business requirement's oracle is always the UI's own
+      // observable result — a quoted expected text asserts by text; a bare
+      // verify resolved against a discovered ARIA live region (see
+      // ui-mapper.ts's mapVerify) asserts by role. Neither ever depends on
+      // the submit's network response — see needsSubmitResponseCapture and
+      // the 'verify-api' case below for the one case that legitimately does.
+      return resolved.strategy === 'role'
+        ? [`await expect(page.getByRole(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`]
+        : [`await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`];
+    }
+    case 'verify-api': {
+      // Only reachable when the requirement explicitly asked for a network
+      // outcome ("Verify API returns 201") — see requirement-parser.ts's
+      // API_STATUS_PATTERN and needsSubmitResponseCapture above.
+      if (!submitResponseCaptured) {
+        throw new Error(
+          'A verify-api step needs a preceding submit action whose response was captured, ' +
+            'but none was found in this spec.',
+        );
       }
-      const lines: string[] = [];
-      if (submitResponseCaptured) {
-        lines.push(`expect(submitResponse.ok()).toBe(true);`);
-      }
-      lines.push(
-        `await expect(page.getByRole(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`,
-      );
-      return lines;
+      return [`expect(submitResponse.status()).toBe(${resolved.detail});`];
     }
     default:
       throw new Error(`Unknown resolved step kind: ${String((resolved as { kind: string }).kind)}`);

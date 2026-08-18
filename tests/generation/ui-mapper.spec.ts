@@ -534,4 +534,17 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
       detail: 'Leave application submitted',
     });
   });
+
+  test('an EXPLICIT "{{api:201}}" marker resolves to a distinct verify-api kind, at HIGH confidence, with no ApplicationMap lookup needed', () => {
+    const steps: RawStep[] = [
+      { action: 'verify', value: '{{api:201}}', raw: 'Verify API returns 201' },
+    ];
+    const [mapping] = mapRequirementToUI('hrms', MAP, steps);
+    expect(mapping.confidence).toBe('HIGH');
+    expect(mapping.resolved).toEqual({
+      kind: 'verify-api',
+      description: 'expect(submitResponse.status()).toBe(201)',
+      detail: '201',
+    });
+  });
 });
