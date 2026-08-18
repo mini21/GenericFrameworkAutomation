@@ -7,8 +7,12 @@ import { finalize, formatPlan } from '../src/core/intent/intent-resolver';
 import { Ambiguity } from '../src/core/intent/intent-types';
 import { classifyWorkflow } from '../src/core/intent/workflow-classifier';
 import { extractUrl } from '../src/core/intent/url-extractor';
+import { extractApplicationName } from '../src/core/intent/application-name-extractor';
 import { ENVIRONMENT_KEYWORDS, matchKeywords } from '../src/core/intent/vocabulary';
-import { listApplications } from '../src/core/config/application-registry';
+import {
+  listApplications,
+  ensureApplicationRegistered,
+} from '../src/core/config/application-registry';
 import {
   toPlaywrightArgs,
   toEnv,
@@ -146,26 +150,38 @@ async function handleStructured(inputLines: string[]): Promise<void> {
   runResolved(outcome.resolved);
 }
 
-function extractApplicationId(text: string): string | undefined {
+/**
+ * Tries every already-registered application first (so "Discover HRMS
+ * again" keeps resolving to the exact id/casing it was onboarded under),
+ * then falls back to deriving a brand-new id straight from the request
+ * text (see application-name-extractor.ts) — the only way a never-seen
+ * application name ("Discover Amazon at ...", "Create automation for
+ * Salesforce at ...") can be named at all without a prior gap:onboard.
+ * `name` is the human-readable form to register a new id under; for an
+ * already-registered id it's that application's own configured name.
+ */
+function extractApplicationId(text: string): { id: string; name: string } | undefined {
   const registry = listApplications();
   const lower = text.toLowerCase();
   for (const [id, def] of Object.entries(registry)) {
     if (new RegExp(`\\b${id}\\b`, 'i').test(text) || lower.includes(def.name.toLowerCase())) {
-      return id;
+      return { id, name: def.name };
     }
   }
-  return undefined;
+  return extractApplicationName(text);
 }
 
 async function handleDiscover(readLine: LineReader, text: string): Promise<void> {
-  let application = extractApplicationId(text);
-  if (!application) {
-    application = ((await prompt(readLine, '\nApplication? ')) ?? '').trim();
+  let found = extractApplicationId(text);
+  if (!found) {
+    const id = ((await prompt(readLine, '\nApplication? ')) ?? '').trim();
+    found = id ? { id, name: id } : undefined;
   }
-  if (!application) {
+  if (!found) {
     process.stdout.write('GAP: No application given — cannot discover.\n\n');
     return;
   }
+  const { id: application, name } = found;
 
   let url = extractUrl(text);
   if (!url) {
@@ -187,6 +203,7 @@ async function handleDiscover(readLine: LineReader, text: string): Promise<void>
       maxPages: 15,
     });
     const filePath = writeApplicationMap(map);
+    ensureApplicationRegistered(application, url, name);
     process.stdout.write(`\n${formatSummary(map)}\n`);
     process.stdout.write(`GAP: application map written to ${filePath}\n\n`);
   } finally {
@@ -199,14 +216,16 @@ async function handleGenerate(
   text: string,
   autoConfirm: boolean,
 ): Promise<void> {
-  let application = extractApplicationId(text);
-  if (!application) {
-    application = ((await prompt(readLine, '\nApplication? ')) ?? '').trim();
+  let foundApplication = extractApplicationId(text);
+  if (!foundApplication) {
+    const id = ((await prompt(readLine, '\nApplication? ')) ?? '').trim();
+    foundApplication = id ? { id, name: id } : undefined;
   }
-  if (!application) {
+  if (!foundApplication) {
     process.stdout.write('GAP: No application given — cannot generate automation.\n\n');
     return;
   }
+  const application = foundApplication.id;
 
   const envMatches = matchKeywords(text, ENVIRONMENT_KEYWORDS);
   let environment: string = envMatches.length === 1 ? envMatches[0] : '';

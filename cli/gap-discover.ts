@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
 import { crawlApplication } from '../src/core/discovery/site-crawler';
 import { writeApplicationMap, formatSummary } from '../src/core/discovery/application-map-writer';
+import { ensureApplicationRegistered } from '../src/core/config/application-registry';
 
 // Launches chromium directly (plain `playwright`, not the `BrowserManager`
 // utility) deliberately: BrowserManager pulls in the Winston logger, which
@@ -50,6 +51,7 @@ async function main(): Promise<void> {
     const context = await browser.newContext({ baseURL: baseUrl, storageState: storageStatePath });
     const map = await crawlApplication(context, { application, baseUrl, startPath, maxPages });
     const filePath = writeApplicationMap(map);
+    ensureApplicationRegistered(application, baseUrl, undefined, startPath);
 
     process.stdout.write(`\n${formatSummary(map)}\n`);
     process.stdout.write(`GAP: application map written to ${filePath}\n\n`);

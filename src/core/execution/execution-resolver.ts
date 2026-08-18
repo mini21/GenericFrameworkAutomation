@@ -228,7 +228,13 @@ export function toEnv(resolved: ResolvedExecution): NodeJS.ProcessEnv {
   return {
     ENV: resolved.environment,
     BASE_URL: appDefinition.baseUrl,
-    API_BASE_URL: appDefinition.apiBaseUrl ?? '',
+    // An application with no separate API host (the common case — e.g.
+    // HRMS serves both from the same origin) simply never sets
+    // `apiBaseUrl`; falling back to `baseUrl` (not '') keeps that legal
+    // and keeps env.config.ts's required-key check meaningful — an empty
+    // string is a present-but-falsy env var, which reads as "explicitly
+    // set to nothing" rather than "not configured, please default it".
+    API_BASE_URL: appDefinition.apiBaseUrl ?? appDefinition.baseUrl,
     GAP_APPLICATION: resolved.application,
     GAP_MODULE: resolved.module ?? '',
     GAP_DATA_PROFILE: resolved.dataProfile ?? '',

@@ -25,6 +25,7 @@ const COVERAGE_TEST_MATCH = ['tests/coverage/**/*.spec.ts'];
 const INTENT_TEST_MATCH = ['tests/intent/**/*.spec.ts'];
 const GENERATION_TEST_MATCH = ['tests/generation/**/*.spec.ts'];
 const EXECUTION_TEST_MATCH = ['tests/execution/**/*.spec.ts'];
+const CONFIG_TEST_MATCH = ['tests/config/**/*.spec.ts'];
 // A second test TYPE (distinct from UI/API), added the same way any team
 // would extend the execution model for their own type (e.g. load) without
 // touching anything above: one testMatch + one project here, then specs
@@ -114,6 +115,11 @@ export default defineConfig({
     {
       name: 'execution',
       testMatch: EXECUTION_TEST_MATCH,
+      use: {},
+    },
+    {
+      name: 'config',
+      testMatch: CONFIG_TEST_MATCH,
       use: {},
     },
     {

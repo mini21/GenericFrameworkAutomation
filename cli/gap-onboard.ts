@@ -1,6 +1,10 @@
 import { parseArgs } from 'node:util';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  registerApplication,
+  ApplicationDefinition,
+} from '../src/core/config/application-registry';
 
 interface OnboardArgs {
   id: string;
@@ -63,28 +67,17 @@ function parseCliArgs(): OnboardArgs {
 }
 
 function updateRegistry(args: OnboardArgs): void {
-  const registryPath = path.resolve(process.cwd(), 'config', 'applications.json');
-  const registryFile = JSON.parse(fs.readFileSync(registryPath, 'utf-8')) as {
-    applications: Record<string, unknown>;
-  };
-
-  if (registryFile.applications[args.id]) {
-    throw new Error(`Application "${args.id}" already exists in config/applications.json.`);
-  }
-
-  registryFile.applications[args.id] = {
+  registerApplication(args.id, {
     name: args.name,
     baseUrl: args.baseUrl,
     apiBaseUrl: args.apiBaseUrl,
     modules: args.modules,
     authProfiles: args.authProfiles,
-    defaultBrowser: args.defaultBrowser,
-    supportedBrowsers: args.browsers,
+    defaultBrowser: args.defaultBrowser as ApplicationDefinition['defaultBrowser'],
+    supportedBrowsers: args.browsers as ApplicationDefinition['supportedBrowsers'],
     dataProfiles: args.dataProfiles,
     ...(args.startPath ? { startPath: args.startPath } : {}),
-  };
-
-  fs.writeFileSync(registryPath, `${JSON.stringify(registryFile, null, 2)}\n`, 'utf-8');
+  });
 }
 
 function scaffoldApplication(args: OnboardArgs): string[] {

@@ -1,7 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { chromium } from 'playwright';
-import { getApplication } from '../config/application-registry';
+import {
+  getApplication,
+  hasApplication,
+  ensureApplicationRegistered,
+} from '../config/application-registry';
 import { crawlApplication } from '../discovery/site-crawler';
 import { writeApplicationMap } from '../discovery/application-map-writer';
 import { ApplicationMap } from '../discovery/discovery-types';
@@ -252,11 +256,57 @@ async function loadOrDiscoverMap(
  * `rejectGeneration` to finish the job; a rejected/never-decided file is
  * not left behind.
  */
-export async function runGenerationPipeline(input: GenerationInput): Promise<GenerationOutcome> {
+/** The `baseUrl` an existing discovery map already recorded for this application, if any — read-only, never written to. */
+function existingMapBaseUrl(application: string): string | undefined {
   try {
-    getApplication(input.application);
-  } catch (error) {
-    return { status: 'blocked', message: error instanceof Error ? error.message : String(error) };
+    const map = JSON.parse(fs.readFileSync(mapPath(application), 'utf-8')) as ApplicationMap;
+    return map.baseUrl || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * GAP has no fixed list of applications — any id is valid the moment
+ * there's a URL to reach it at, exactly like discovery itself (see
+ * cli/gap-discover.ts) already requires no prior registration. This makes
+ * generation/execution work the same way: the FIRST time an application is
+ * named, either `--url` on this call or an already-written discovery map
+ * (crawled but never formally onboarded) is enough to derive a minimal
+ * definition and register it — modules/authProfiles/dataProfiles start
+ * empty and simply get filled in over time (an application that never
+ * needs auth never needs an authProfile; a step that genuinely needs a
+ * credential/data value GAP can't derive already asks for it via
+ * `resolveMissingValue`/`resolveAmbiguity`, never invents one here).
+ * Returns false only when NEITHER a URL nor an existing map is available —
+ * genuinely nothing to derive a definition from.
+ */
+function autoRegisterIfMissing(
+  application: string,
+  url: string | undefined,
+  explicitStartPath: string | undefined,
+): boolean {
+  if (hasApplication(application)) return true;
+  const baseUrl = url ?? existingMapBaseUrl(application);
+  if (!baseUrl) return false;
+  // Registering the same start path discovery itself resolved (see
+  // resolveStartPath above) — a first-time app with no `startPath` of its
+  // own yet gets exactly the path its own --url/--start-path pointed at,
+  // not a guessed one, so a generated test can navigate there before its
+  // first step the same way an app onboarded via gap:onboard already can.
+  const startPath = url ? resolveStartPath(url, explicitStartPath, undefined) : undefined;
+  ensureApplicationRegistered(application, baseUrl, undefined, startPath);
+  return true;
+}
+
+export async function runGenerationPipeline(input: GenerationInput): Promise<GenerationOutcome> {
+  if (!autoRegisterIfMissing(input.application, input.url, input.startPath)) {
+    return {
+      status: 'blocked',
+      message:
+        `Unknown application "${input.application}" and no discovery map or --url to register it ` +
+        `from. Pass --url=<baseUrl> to discover and register it in one step.`,
+    };
   }
 
   const map = await loadOrDiscoverMap(input);
