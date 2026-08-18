@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
+import { getApplication } from '../src/core/config/application-registry';
 
 export type Environment = 'dev' | 'qa' | 'staging' | 'prod';
 
@@ -32,11 +33,44 @@ function resolveEnvironment(): Environment {
   return env as Environment;
 }
 
+/**
+ * Every application's tests live under `applications/<id>/tests/...` —
+ * the same convention playwright.config.ts's own test-match globs already
+ * rely on. When Playwright is invoked directly against a file under that
+ * convention (`npx playwright test applications/hrms/tests/...`, not
+ * through the GAP CLI, which already sets BASE_URL/GAP_APPLICATION itself
+ * before spawning Playwright), this is the only signal available at
+ * config-load time for which application's baseUrl to default to.
+ * Deliberately generic — reads config/applications.json via the existing
+ * registry, no application ever named here — and deliberately gives up
+ * (returns undefined) rather than guessing whenever zero or more than one
+ * distinct application id appears across the given arguments, e.g. a
+ * whole-suite run with no file filter.
+ */
+function inferApplicationFromArgv():
+  { id: string; baseUrl: string; apiBaseUrl: string } | undefined {
+  const ids = new Set<string>();
+  for (const arg of process.argv) {
+    const match = /applications\/([^/]+)\//.exec(arg);
+    if (match) ids.add(match[1]);
+  }
+  if (ids.size !== 1) return undefined;
+
+  const [id] = ids;
+  try {
+    const app = getApplication(id);
+    return { id, baseUrl: app.baseUrl, apiBaseUrl: app.apiBaseUrl ?? app.baseUrl };
+  } catch {
+    return undefined; // unregistered id in the path — never guess a URL for it
+  }
+}
+
 function loadEnvFile(env: Environment): void {
   // Captured before anything else touches process.env: a var already set
   // here came from the real shell/CI environment or a wrapping process
   // (e.g. the GAP CLI injecting an application's BASE_URL before spawning
-  // Playwright) — that always wins, including over .env.local below.
+  // Playwright) — that always wins, including over .env.local and the
+  // inferred-application defaults below.
   const explicitlySet = new Set(Object.keys(process.env));
 
   const envFilePath = path.resolve(__dirname, 'environments', `.env.${env}`);
@@ -56,6 +90,20 @@ function loadEnvFile(env: Environment): void {
       if (!explicitlySet.has(key)) {
         process.env[key] = value;
       }
+    }
+  }
+
+  // A specific application's own baseUrl is a more precise default than
+  // the environment-wide placeholder in .env.<env> — apply it wherever the
+  // caller didn't explicitly set BASE_URL/API_BASE_URL/GAP_APPLICATION
+  // themselves. Runs last so it wins over the generic .env.<env>/.env.local
+  // values above for exactly the vars the caller left unset.
+  if (!explicitlySet.has('BASE_URL') || !explicitlySet.has('API_BASE_URL')) {
+    const inferred = inferApplicationFromArgv();
+    if (inferred) {
+      if (!explicitlySet.has('BASE_URL')) process.env.BASE_URL = inferred.baseUrl;
+      if (!explicitlySet.has('API_BASE_URL')) process.env.API_BASE_URL = inferred.apiBaseUrl;
+      if (!explicitlySet.has('GAP_APPLICATION')) process.env.GAP_APPLICATION = inferred.id;
     }
   }
 }
