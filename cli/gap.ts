@@ -270,7 +270,13 @@ async function handleGenerate(
   const coverage = runCoverageReport(outcome.spec.application);
   const coverageLine = /Requirement Coverage:.*$/m.exec(coverage.output)?.[0];
   process.stdout.write(
-    formatFinalSummary(outcome.spec, outcome.filePath, outcome.stableTestId, coverageLine),
+    formatFinalSummary(
+      outcome.spec,
+      outcome.filePath,
+      outcome.stableTestId,
+      environment,
+      coverageLine,
+    ),
   );
 }
 

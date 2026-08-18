@@ -116,6 +116,7 @@ export function formatFinalSummary(
   spec: TestSpecification,
   filePath: string,
   stableTestId: string,
+  environment: string,
   coverageSummary?: string,
 ): string {
   const lines = [
@@ -129,6 +130,15 @@ export function formatFinalSummary(
     `Stable test id: @${stableTestId}`,
     `File:           ${relativePath(filePath)}`,
     `Requirements:   applications/${spec.application}/requirements/requirements.json`,
+    '',
+    // Every locator/login helper in a generated test relies on BASE_URL
+    // being set for THIS application — exactly like every hand-written
+    // test in the suite — which only the GAP execution engine guarantees.
+    // Running the file directly via `npx playwright test` skips that and
+    // fails confusingly far downstream (e.g. "Username not found"), so the
+    // one supported way to re-run it is spelled out right here.
+    'To re-run this test later, use the GAP execution engine (not `npx playwright test` directly):',
+    `  npm run gap:test -- --application=${spec.application} --environment=${environment} --tags=@${stableTestId}`,
     '',
     'Report available at: reports/html-report/index.html',
     'Run "npm run report:show" to open it.',

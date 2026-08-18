@@ -59,9 +59,10 @@ async function main(): Promise<void> {
 
   process.stdout.write(`\nGAP: generating automation for "${values.application}"...\n`);
 
+  const environment = values.environment ?? 'qa';
   const outcome = await runGenerationPipeline({
     application: values.application,
-    environment: values.environment ?? 'qa',
+    environment,
     url: values.url,
     storageStatePath: values['storage-state'],
     startPath: values['start-path'],
@@ -99,7 +100,13 @@ async function main(): Promise<void> {
   const coverageLine = /Requirement Coverage:.*$/m.exec(coverage.output)?.[0];
 
   process.stdout.write(
-    formatFinalSummary(outcome.spec, outcome.filePath, outcome.stableTestId, coverageLine),
+    formatFinalSummary(
+      outcome.spec,
+      outcome.filePath,
+      outcome.stableTestId,
+      environment,
+      coverageLine,
+    ),
   );
   rl.close();
 }
