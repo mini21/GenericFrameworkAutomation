@@ -138,6 +138,30 @@ function totalElementCount(map: ApplicationMap): number {
   );
 }
 
+/**
+ * A generic diagnosis for the one execution-failure shape that's genuinely
+ * ambiguous to read cold: `page.waitForResponse` timing out on a captured
+ * submit (see code-generator.ts's needsSubmitResponseCapture) means the
+ * click never actually triggered a network request at all — the most
+ * common reason, for ANY application's form, is the browser's own native
+ * "required field" validation blocking the submit before it fires, because
+ * a fill step's value was never specified (an unquoted step like "Enter
+ * reason" is deliberately never guessed at — see requirement-parser.ts).
+ * Every other execution failure already carries Playwright's own clear
+ * error text, so this only adds a hint for this one specific pattern.
+ */
+export function explainExecutionFailure(output: string): string | undefined {
+  if (output.includes('waitForResponse') && output.includes('Timeout')) {
+    return (
+      'Likely cause: the submit click never triggered a network request at all — the ' +
+      'browser\'s own "please fill out this field" validation probably blocked it. Check ' +
+      'that every required field mentioned in the requirement has an explicit, quoted value ' +
+      '(e.g. Fill Reason as "Family trip"), not just a bare mention like "Enter reason".'
+    );
+  }
+  return undefined;
+}
+
 async function loadOrDiscoverMap(
   input: GenerationInput,
 ): Promise<ApplicationMap | { error: string }> {
@@ -329,9 +353,12 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
   const execution = runGeneratedTest(input.application, input.environment, generated.filePath);
   if (!execution.passed) {
     deleteGeneratedFile(generated.filePath);
+    const hint = explainExecutionFailure(execution.output);
     return {
       status: 'blocked',
-      message: `Generated test did not pass execution — nothing was saved:\n${execution.output}`,
+      message:
+        `Generated test did not pass execution — nothing was saved:\n${execution.output}` +
+        (hint ? `\n\n${hint}` : ''),
     };
   }
 
