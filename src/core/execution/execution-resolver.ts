@@ -137,6 +137,8 @@ export function resolveExecution({
     parseNumber(env.GAP_RETRIES),
     manifest.execution?.retries,
   );
+  const typeExplicit =
+    cli.type !== undefined || env.GAP_TYPE !== undefined || manifest.execution?.type !== undefined;
   const explicitTags = firstDefined(cli.tags, envTags, manifest.tags) ?? [];
   const dataProfile = firstDefined(
     cli.dataProfile,
@@ -150,8 +152,17 @@ export function resolveExecution({
     manifest.authentication?.profile,
   );
 
-  // The test-type tag is always required; explicit tags/module narrow further (AND, not OR).
-  const tags = Array.from(new Set([TEST_TYPE_TAG[type], ...explicitTags]));
+  // The type tag is only injected when the type is a real user/manifest choice
+  // (or nothing else narrowed the run at all). Once the caller names explicit
+  // tags without also naming a type, `type` above has silently defaulted to
+  // 'smoke' just to satisfy TestType's return shape — ANDing @smoke into that
+  // request would wrongly exclude every non-smoke-tagged test (e.g. a
+  // generated test's own stable @hrms.<module>.generated.<n> tag) instead of
+  // running exactly what was asked for.
+  const tags =
+    explicitTags.length > 0 && !typeExplicit
+      ? Array.from(new Set(explicitTags))
+      : Array.from(new Set([TEST_TYPE_TAG[type], ...explicitTags]));
 
   return {
     application,
