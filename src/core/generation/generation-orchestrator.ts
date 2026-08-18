@@ -5,6 +5,8 @@ import { getApplication } from '../config/application-registry';
 import { crawlApplication } from '../discovery/site-crawler';
 import { writeApplicationMap } from '../discovery/application-map-writer';
 import { ApplicationMap } from '../discovery/discovery-types';
+import { establishAuthenticatedStart, DiscoveryCredential } from '../discovery/authenticated-start';
+import { loadDataProfile } from '../execution/data-profile';
 import { parseRequirement } from './requirement-parser';
 import { mapRequirementToUI } from './ui-mapper';
 import { buildTestSpecification } from './test-spec-builder';
@@ -86,6 +88,34 @@ export function resolveStartPath(url: string, explicitStartPath: string | undefi
   return pathname && pathname !== '/' ? pathname : '/';
 }
 
+/**
+ * Looks up this application's own registered default data/auth profile
+ * (`config/applications.json`'s `dataProfiles[0]`/`authProfiles[0]` —
+ * generic per-application config, the same convention every onboarded
+ * app already follows) and reads the matching credential out of its
+ * existing `applications/<app>/data/<profile>.json` file — never a
+ * literal credential in source. Returns undefined on any missing
+ * piece: an application with no registered profiles simply doesn't get
+ * authenticated discovery, it never crashes discovery over it.
+ */
+function resolveDiscoveryCredential(application: string): DiscoveryCredential | undefined {
+  try {
+    const app = getApplication(application);
+    const dataProfileId = app.dataProfiles[0];
+    const authProfileKey = app.authProfiles[0];
+    if (!dataProfileId || !authProfileKey) return undefined;
+    const profile = loadDataProfile<Record<string, { username?: string; password?: string }>>(
+      application,
+      dataProfileId,
+    );
+    const credential = profile[authProfileKey];
+    if (!credential?.username || !credential?.password) return undefined;
+    return { username: credential.username, password: credential.password };
+  } catch {
+    return undefined;
+  }
+}
+
 /** Total buttons/inputs/links/selects/checkboxes discovered across every page — the generic, app-agnostic signal that a crawl actually found something usable. */
 function totalElementCount(map: ApplicationMap): number {
   return map.pages.reduce(
@@ -110,10 +140,32 @@ async function loadOrDiscoverMap(
         baseURL: input.url,
         storageState: input.storageStatePath,
       });
+      let startPath = resolveStartPath(input.url, input.startPath);
+
+      // No pre-captured session? If this page turns out to genuinely be a
+      // login form, and this application has a registered credential
+      // profile, perform a real login and continue discovery from wherever
+      // that lands — never a guessed URL, never skipping the login itself.
+      if (!input.storageStatePath) {
+        const credential = resolveDiscoveryCredential(input.application);
+        if (credential) {
+          const probePage = await context.newPage();
+          try {
+            await probePage.goto(new URL(startPath, input.url).toString(), {
+              waitUntil: 'domcontentloaded',
+            });
+            const authenticatedPath = await establishAuthenticatedStart(probePage, credential);
+            if (authenticatedPath) startPath = authenticatedPath;
+          } finally {
+            await probePage.close();
+          }
+        }
+      }
+
       const map = await crawlApplication(context, {
         application: input.application,
         baseUrl: input.url,
-        startPath: resolveStartPath(input.url, input.startPath),
+        startPath,
         maxPages: input.maxPages ?? 15,
       });
       if (totalElementCount(map) === 0) {
