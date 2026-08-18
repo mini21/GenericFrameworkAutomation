@@ -1,7 +1,10 @@
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
 import { crawlApplication } from '../src/core/discovery/site-crawler';
-import { writeApplicationMap, formatSummary } from '../src/core/discovery/application-map-writer';
+import {
+  writeApplicationMapSafely,
+  formatSummary,
+} from '../src/core/discovery/application-map-writer';
 import { ensureApplicationRegistered } from '../src/core/config/application-registry';
 
 // Launches chromium directly (plain `playwright`, not the `BrowserManager`
@@ -50,11 +53,20 @@ async function main(): Promise<void> {
   try {
     const context = await browser.newContext({ baseURL: baseUrl, storageState: storageStatePath });
     const map = await crawlApplication(context, { application, baseUrl, startPath, maxPages });
-    const filePath = writeApplicationMap(map);
+    const result = writeApplicationMapSafely(map);
+    // Idempotent regardless of whether THIS crawl's map got written — an
+    // already-registered app (the common case whenever an existing map was
+    // just protected from being overwritten) is a no-op; a never-registered
+    // one still needs an entry so a still-usable existing map remains
+    // reachable for generation/execution.
     ensureApplicationRegistered(application, baseUrl, undefined, startPath);
 
     process.stdout.write(`\n${formatSummary(map)}\n`);
-    process.stdout.write(`GAP: application map written to ${filePath}\n\n`);
+    if (result.written) {
+      process.stdout.write(`GAP: application map written to ${result.filePath}\n\n`);
+    } else {
+      process.stdout.write(`GAP: ${result.skippedReason}\n\n`);
+    }
   } finally {
     await browser.close();
   }

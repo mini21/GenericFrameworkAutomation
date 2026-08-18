@@ -20,7 +20,10 @@ import {
   CliOverrides,
 } from '../src/core/execution/execution-resolver';
 import { crawlApplication } from '../src/core/discovery/site-crawler';
-import { writeApplicationMap, formatSummary } from '../src/core/discovery/application-map-writer';
+import {
+  writeApplicationMapSafely,
+  formatSummary,
+} from '../src/core/discovery/application-map-writer';
 import {
   runGenerationPipeline,
   approveGeneration,
@@ -202,10 +205,14 @@ async function handleDiscover(readLine: LineReader, text: string): Promise<void>
       startPath: '/',
       maxPages: 15,
     });
-    const filePath = writeApplicationMap(map);
+    const result = writeApplicationMapSafely(map);
     ensureApplicationRegistered(application, url, name);
     process.stdout.write(`\n${formatSummary(map)}\n`);
-    process.stdout.write(`GAP: application map written to ${filePath}\n\n`);
+    if (result.written) {
+      process.stdout.write(`GAP: application map written to ${result.filePath}\n\n`);
+    } else {
+      process.stdout.write(`GAP: ${result.skippedReason}\n\n`);
+    }
   } finally {
     await browser.close();
   }

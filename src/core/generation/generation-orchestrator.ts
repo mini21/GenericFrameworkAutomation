@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { chromium } from 'playwright';
 import {
   getApplication,
@@ -7,7 +5,8 @@ import {
   ensureApplicationRegistered,
 } from '../config/application-registry';
 import { crawlApplication } from '../discovery/site-crawler';
-import { writeApplicationMap } from '../discovery/application-map-writer';
+import { readApplicationMap, writeApplicationMapSafely } from '../discovery/application-map-writer';
+import { isMapUsable } from '../discovery/map-analysis';
 import { ApplicationMap } from '../discovery/discovery-types';
 import { establishAuthenticatedStart, DiscoveryCredential } from '../discovery/authenticated-start';
 import { loadDataProfile } from '../execution/data-profile';
@@ -74,16 +73,6 @@ export type GenerationOutcome =
       diagnostics?: StepMapping[];
     };
 
-function mapPath(application: string): string {
-  return path.resolve(
-    process.cwd(),
-    'applications',
-    application,
-    'discovery',
-    'application-map.json',
-  );
-}
-
 /**
  * `--start-path` always wins when given explicitly. Otherwise, if the
  * supplied `--url` itself carries a path (e.g. `http://host/login.html`),
@@ -133,20 +122,6 @@ function resolveDiscoveryCredential(application: string): DiscoveryCredential | 
   } catch {
     return undefined;
   }
-}
-
-/** Total buttons/inputs/links/selects/checkboxes discovered across every page — the generic, app-agnostic signal that a crawl actually found something usable. */
-function totalElementCount(map: ApplicationMap): number {
-  return map.pages.reduce(
-    (sum, page) =>
-      sum +
-      page.buttons.length +
-      page.inputs.length +
-      page.links.length +
-      page.selects.length +
-      page.checkboxes.length,
-    0,
-  );
 }
 
 /**
@@ -215,31 +190,46 @@ async function loadOrDiscoverMap(
         startPath,
         maxPages: input.maxPages ?? 15,
       });
-      if (totalElementCount(map) === 0) {
+
+      if (!isMapUsable(map)) {
+        // A transient/blocked crawl (bot-check, interstitial, rate-limit,
+        // an app that needs auth this run didn't have) must not be treated
+        // as "this application is undiscovered" when a real map from an
+        // earlier successful crawl already exists on disk — falling back
+        // to it lets generation proceed on known-good data instead of
+        // needlessly blocking every run until the target happens to be
+        // reachable again. writeApplicationMapSafely never lets the empty
+        // result overwrite that existing map either way.
+        writeApplicationMapSafely(map);
+        const existing = readApplicationMap(input.application);
+        if (existing && isMapUsable(existing)) return existing;
+
         return {
           error:
             `Discovery found ${map.pages.length} page(s) but zero buttons/inputs/links/selects/checkboxes ` +
             `across all of them (e.g. "${map.pages[0]?.pageName}" at ${map.pages[0]?.path}) — this usually ` +
-            'means the start path 404s or the app needs authentication. Not overwriting any existing map. ' +
-            'Pass --start-path (e.g. /dashboard.html) and/or --storage-state for an authenticated crawl.',
+            'means the start path 404s, the app needs authentication, or a bot-check/interstitial page was ' +
+            'served instead of the real application. No usable existing map to fall back on either. Pass ' +
+            '--start-path (e.g. /dashboard.html) and/or --storage-state for an authenticated crawl.',
         };
       }
-      writeApplicationMap(map);
+
+      writeApplicationMapSafely(map);
       return map;
     } finally {
       await browser.close();
     }
   }
 
-  const filePath = mapPath(input.application);
-  if (!fs.existsSync(filePath)) {
+  const existing = readApplicationMap(input.application);
+  if (!existing) {
     return {
       error:
-        `No application map found for "${input.application}" at ${filePath}. ` +
+        `No application map found for "${input.application}". ` +
         'Pass --url to discover it first, e.g. --url=http://localhost:4100.',
     };
   }
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as ApplicationMap;
+  return existing;
 }
 
 /**
@@ -256,14 +246,9 @@ async function loadOrDiscoverMap(
  * `rejectGeneration` to finish the job; a rejected/never-decided file is
  * not left behind.
  */
-/** The `baseUrl` an existing discovery map already recorded for this application, if any — read-only, never written to. */
+/** The `baseUrl` an existing discovery map already recorded for this application, if any. */
 function existingMapBaseUrl(application: string): string | undefined {
-  try {
-    const map = JSON.parse(fs.readFileSync(mapPath(application), 'utf-8')) as ApplicationMap;
-    return map.baseUrl || undefined;
-  } catch {
-    return undefined;
-  }
+  return readApplicationMap(application)?.baseUrl || undefined;
 }
 
 /**

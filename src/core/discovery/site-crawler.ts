@@ -1,6 +1,7 @@
 import { BrowserContext } from 'playwright';
 import { mapPage } from './page-crawler';
 import { ApplicationMap, PageMap } from './discovery-types';
+import { pageElementCount } from './map-analysis';
 
 export interface CrawlOptions {
   application: string;
@@ -70,9 +71,11 @@ export async function crawlApplication(
       const key = normalizePath(target);
       if (visited.has(key)) continue;
       visited.add(key);
+      const isFirstPage = pages.length === 0;
 
+      let response;
       try {
-        await page.goto(target, { waitUntil: 'domcontentloaded' });
+        response = await page.goto(target, { waitUntil: 'domcontentloaded' });
       } catch (error) {
         errors.push({
           url: target,
@@ -81,7 +84,37 @@ export async function crawlApplication(
         continue;
       }
 
-      pages.push(await mapPage(page));
+      // A non-2xx/3xx response (bot-check, rate-limit, server error) still
+      // navigates successfully as far as Playwright's own goto() is
+      // concerned — it doesn't throw on HTTP status alone — so this is
+      // recorded as a diagnostic rather than treated as a hard failure: an
+      // app that genuinely serves a real page with a non-2xx status (some
+      // do for an unauthenticated route) still gets mapped normally below.
+      if (response && !response.ok()) {
+        errors.push({
+          url: target,
+          message: `HTTP ${response.status()} ${response.statusText()}`.trim(),
+        });
+      }
+
+      let mapped = await mapPage(page);
+
+      // Generic recovery for "the page hadn't actually finished rendering
+      // yet" — a client-rendered app (or an interim bot-check/interstitial
+      // that resolves itself via JS) can leave domcontentloaded's snapshot
+      // essentially empty even on what will become a perfectly normal page.
+      // Only worth the extra wait for the crawl's own entry point: if THAT
+      // page comes back with nothing to show for it, waiting for the
+      // network to settle and re-reading the DOM once is cheap; doing this
+      // for every page would slow down a normal crawl for no benefit, since
+      // a genuinely content-free page stays content-free either way.
+      if (isFirstPage && pageElementCount(mapped) === 0) {
+        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+        const retried = await mapPage(page);
+        if (pageElementCount(retried) > 0) mapped = retried;
+      }
+
+      pages.push(mapped);
 
       const hrefs = await page
         .locator('a[href]')
