@@ -13,6 +13,7 @@ import {
   readRequirementInteractively,
   decideApproval,
   resolveAmbiguityInteractively,
+  resolveMissingValueInteractively,
 } from './lib/generation-approval';
 
 async function main(): Promise<void> {
@@ -71,6 +72,7 @@ async function main(): Promise<void> {
     maxPages: values['max-pages'] ? Number(values['max-pages']) : undefined,
     headless: values.headless !== 'false',
     resolveAmbiguity: resolveAmbiguityInteractively(readLine),
+    resolveMissingValue: resolveMissingValueInteractively(readLine),
     diagnose: Boolean(values.diagnose),
   });
 

@@ -29,6 +29,7 @@ import {
   readRequirementInteractively,
   decideApproval,
   resolveAmbiguityInteractively,
+  resolveMissingValueInteractively,
 } from './lib/generation-approval';
 
 const MAX_CLARIFICATION_ROUNDS = 5;
@@ -246,6 +247,7 @@ async function handleGenerate(
     url,
     requirementText,
     resolveAmbiguity: resolveAmbiguityInteractively(readLine),
+    resolveMissingValue: resolveMissingValueInteractively(readLine),
     diagnose,
   });
 

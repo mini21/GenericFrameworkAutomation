@@ -42,6 +42,13 @@ export interface GenerationInput {
    * never guessed.
    */
   resolveAmbiguity?: (step: RawStep, candidates: MappingCandidate[]) => Promise<string | undefined>;
+  /**
+   * Called once per field named without a value ("Enter reason") — return
+   * the value to fill it with, or undefined to leave it unresolved. Omit
+   * for non-interactive callers: any field still missing a value after
+   * this is reported as `blocked`, listing every one, never guessed.
+   */
+  resolveMissingValue?: (field: string, raw: string) => Promise<string | undefined>;
   /** When true, every outcome (blocked or ready-for-approval) carries the full per-step scoring trail — see presentation.ts's formatDiagnostics. */
   diagnose?: boolean;
 }
@@ -257,7 +264,47 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     return { status: 'blocked', message: map.error };
   }
 
-  const parsed = parseRequirement(input.requirementText);
+  let parsed = parseRequirement(input.requirementText);
+  let requirementText = input.requirementText;
+
+  // "Enter reason"/"Fill Reason" names a field but states no value — there's
+  // no safe default for free-form business text, so ask (if a resolver was
+  // given) instead of either guessing or only discovering it's missing 10+
+  // seconds later via a submit that silently never fires. A human's answer
+  // re-parses back in as a proper quoted `Fill <field> as "<value>"`, the
+  // same "re-parse with the exact literal substituted" pattern used for
+  // every other kind of ambiguity in this pipeline.
+  for (
+    let attempt = 0;
+    attempt < parsed.needsClarification.length + 1 && parsed.needsClarification.length > 0;
+    attempt++
+  ) {
+    if (!input.resolveMissingValue) break;
+    let answeredAnything = false;
+    for (const item of parsed.needsClarification) {
+      const value = await input.resolveMissingValue(item.field, item.raw);
+      if (value) {
+        requirementText = requirementText.replace(item.raw, `Fill ${item.field} as "${value}"`);
+        answeredAnything = true;
+      }
+    }
+    if (!answeredAnything) break;
+    parsed = parseRequirement(requirementText);
+  }
+
+  if (parsed.needsClarification.length > 0) {
+    const lines = parsed.needsClarification.map(
+      (c) => `  - "${c.raw}" — what value should "${c.field}" be filled with?`,
+    );
+    return {
+      status: 'blocked',
+      message:
+        `${parsed.needsClarification.length} step(s) name a field but never state what value to ` +
+        `fill it with — never guessed:\n${lines.join('\n')}\n` +
+        `Rewrite with an explicit value, e.g. Fill Reason as "Family trip".`,
+    };
+  }
+
   if (parsed.steps.length === 0) {
     return {
       status: 'blocked',

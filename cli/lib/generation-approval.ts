@@ -27,6 +27,25 @@ export function resolveAmbiguityInteractively(
   };
 }
 
+/**
+ * A step named a field but stated no value ("Enter reason") — there's no
+ * safe default for free-form business text, so ask instead of guessing or
+ * only discovering it's missing 10+ seconds later via a submit that never
+ * fires. A blank answer leaves it genuinely unresolved (reported clearly,
+ * never silently filled with an empty string).
+ */
+export function resolveMissingValueInteractively(
+  readLine: LineReader,
+): (field: string, raw: string) => Promise<string | undefined> {
+  return async (field, raw) => {
+    process.stdout.write(`\nGAP: "${raw}" doesn't say what value to use.\n`);
+    const answer = (
+      (await prompt(readLine, `  What should "${field}" be filled with? `)) ?? ''
+    ).trim();
+    return answer || undefined;
+  };
+}
+
 /** Multi-line "one step per line, blank line to finish" collection — shared by cli/gap-generate.ts and cli/gap.ts's GENERATE flow. */
 export async function readRequirementInteractively(readLine: LineReader): Promise<string> {
   process.stdout.write(

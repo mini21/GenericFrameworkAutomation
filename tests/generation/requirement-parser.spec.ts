@@ -100,4 +100,37 @@ test.describe(`Generation — requirement parser ${TAGS.SMOKE}`, () => {
     const { steps: checkForm } = parseRequirement('Check status is Approved.');
     expect(checkForm).toEqual([{ action: 'verify', raw: 'Check status is Approved' }]);
   });
+
+  test('"Select start date."/"Select end date." as separate sentences use the same safe date marker as the combined phrasing', () => {
+    const { steps } = parseRequirement('Select start date.\nSelect end date.');
+    expect(steps).toEqual([
+      { action: 'fill', target: 'Start Date', value: '{{date:start}}', raw: 'Select start date' },
+      { action: 'fill', target: 'End Date', value: '{{date:end}}', raw: 'Select end date' },
+    ]);
+  });
+
+  test('a field named with no value ("Enter reason") is surfaced as needing clarification, not silently dropped and not guessed', () => {
+    const { steps, needsClarification } = parseRequirement(
+      'Login as employee.\nEnter reason.\nSubmit the leave request.',
+    );
+    // Never turned into a fill step with an invented/empty value:
+    expect(steps.some((s) => s.action === 'fill')).toBe(false);
+    expect(needsClarification).toEqual([{ raw: 'Enter reason', field: 'reason' }]);
+  });
+
+  test('once the missing value is supplied, re-parsing with it substituted in produces a real, quoted fill step', () => {
+    const { needsClarification } = parseRequirement('Enter reason.');
+    const [{ field, raw }] = needsClarification;
+    const rewritten = 'Enter reason.'.replace(raw, `Fill ${field} as "Family trip"`);
+    const { steps, needsClarification: stillMissing } = parseRequirement(rewritten);
+    expect(stillMissing).toEqual([]);
+    expect(steps).toEqual([
+      {
+        action: 'fill',
+        target: 'reason',
+        value: 'Family trip',
+        raw: 'Fill reason as "Family trip"',
+      },
+    ]);
+  });
 });

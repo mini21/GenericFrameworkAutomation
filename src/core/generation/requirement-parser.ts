@@ -4,6 +4,14 @@ export interface ParsedRequirement {
   requirementText: string;
   testNameHint: string;
   steps: RawStep[];
+  /**
+   * Sentences that clearly ask to fill a field ("Enter reason") but never
+   * state what value to use — never guessed, but also never just silently
+   * dropped like a truly unrecognized sentence: the caller can ask the
+   * human for the missing value (see cli/lib/generation-approval.ts) and
+   * re-parse with it substituted in as a proper quoted `Fill X as "Y"`.
+   */
+  needsClarification: { raw: string; field: string }[];
 }
 
 // Every value-bearing pattern requires an explicit "quoted" value — this is
@@ -14,7 +22,21 @@ export interface ParsedRequirement {
 const LOGIN_PATTERN = /^log\s*in\s+as\s+(.+)$/i;
 const NAVIGATE_PATTERN = /^(?:open|go to|navigate to)\s+(?:the\s+)?(.+)$/i;
 const DATES_PATTERN = /^select\s+start\s+and\s+end\s+dates?$/i;
+// Same safe, already-established {{date:start}}/{{date:end}} marker as
+// DATES_PATTERN above, just for the two dates stated as separate sentences
+// ("Select start date. Select end date.") instead of the combined phrasing
+// — a relative future date is synthesized either way, never a specific
+// business value, so this isn't new guessing, just recognizing more of the
+// same already-safe shape.
+const START_DATE_PATTERN = /^(?:select|enter|choose|pick|set|fill)\s+(?:the\s+)?start\s+date$/i;
+const END_DATE_PATTERN = /^(?:select|enter|choose|pick|set|fill)\s+(?:the\s+)?end\s+date$/i;
 const FILL_QUOTED_PATTERN = /^(?:fill|enter|set)\s+(.+?)\s+(?:as|to|with)\s+"([^"]+)"$/i;
+// The same action verbs as FILL_QUOTED_PATTERN, but with no quoted value at
+// all — "Enter reason", "Fill Reason". There's no safe default for
+// free-form business text, so this is deliberately NOT turned into a fill
+// step (which would otherwise need to invent a value or silently fill
+// empty string) — it's surfaced as something to ask about instead.
+const FILL_MISSING_VALUE_PATTERN = /^(?:fill|enter|set)\s+(?:the\s+)?(.+?)$/i;
 const SELECT_QUOTED_PATTERN = /^select\s+"([^"]+)"\s+(?:for|in|from)\s+(.+)$/i;
 // Generic "submit ... request/form/application" recognition — matches
 // "submit the request", "submit the leave request", "submit the expense
@@ -61,12 +83,17 @@ function deriveTestName(firstSentence: string): string {
 export function parseRequirement(text: string): ParsedRequirement {
   const sentences = splitSentences(text);
   const steps: RawStep[] = [];
+  const needsClarification: { raw: string; field: string }[] = [];
 
   for (const sentence of sentences) {
     let match: RegExpExecArray | null;
 
     if (DATES_PATTERN.test(sentence)) {
       steps.push({ action: 'fill', target: 'Start Date', value: '{{date:start}}', raw: sentence });
+      steps.push({ action: 'fill', target: 'End Date', value: '{{date:end}}', raw: sentence });
+    } else if (START_DATE_PATTERN.test(sentence)) {
+      steps.push({ action: 'fill', target: 'Start Date', value: '{{date:start}}', raw: sentence });
+    } else if (END_DATE_PATTERN.test(sentence)) {
       steps.push({ action: 'fill', target: 'End Date', value: '{{date:end}}', raw: sentence });
     } else if ((match = LOGIN_PATTERN.exec(sentence))) {
       steps.push({ action: 'login', target: match[1].trim(), raw: sentence });
@@ -82,6 +109,8 @@ export function parseRequirement(text: string): ParsedRequirement {
       steps.push({ action: 'verify', raw: sentence });
     } else if ((match = NAVIGATE_PATTERN.exec(sentence))) {
       steps.push({ action: 'navigate', target: match[1].trim(), raw: sentence });
+    } else if ((match = FILL_MISSING_VALUE_PATTERN.exec(sentence))) {
+      needsClarification.push({ raw: sentence, field: match[1].trim() });
     } else if ((match = CLICK_PATTERN.exec(sentence))) {
       steps.push({ action: 'click', target: match[1].trim(), raw: sentence });
     }
@@ -92,5 +121,6 @@ export function parseRequirement(text: string): ParsedRequirement {
     requirementText: text.trim(),
     testNameHint: deriveTestName(sentences[0] ?? text.trim()),
     steps,
+    needsClarification,
   };
 }
