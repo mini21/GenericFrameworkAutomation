@@ -81,7 +81,7 @@ function loginInlineDetail(
   };
 }
 
-function stepLines(step: StepMapping): string[] {
+function stepLines(step: StepMapping, applicationStartPath: string | undefined): string[] {
   const resolved = step.resolved;
   if (!resolved) {
     // Enforced by the caller (gap-generate.ts) never calling this generator
@@ -93,7 +93,18 @@ function stepLines(step: StepMapping): string[] {
     case 'login-helper': {
       const detail = loginHelperDetail(step);
       if (!detail) throw new Error('login-helper step missing detail');
-      return [`await ${detail.functionName}(page, ui, profile.${detail.profileKey});`];
+      // Explicit, visible in the generated file, not implicit inside the
+      // helper: establishes the application's own configured start page
+      // BEFORE login runs — config/applications.json's per-application
+      // `startPath`, never a literal path invented here. Omitted (not a
+      // blank string) when an application hasn't registered one, so this
+      // never generates a guessed navigation.
+      const lines: string[] = [];
+      if (applicationStartPath) {
+        lines.push(`await page.goto(${JSON.stringify(applicationStartPath)});`);
+      }
+      lines.push(`await ${detail.functionName}(page, ui, profile.${detail.profileKey});`);
+      return lines;
     }
     case 'login-inline': {
       const detail = loginInlineDetail(step);
@@ -223,7 +234,7 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
     );
   }
   for (const step of spec.steps) {
-    bodyLines.push(...stepLines(step));
+    bodyLines.push(...stepLines(step, app.startPath));
   }
 
   const importLines = [
