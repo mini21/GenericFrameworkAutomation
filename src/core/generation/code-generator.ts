@@ -290,19 +290,21 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
     );
   }
   // login-helper/login-inline/navigate steps already emit their own
-  // page.goto (see stepLines below) — this only covers everything else: an
-  // application with a registered startPath (e.g. auto-registered from
-  // discovery's own --start-path — see generation-orchestrator.ts) but a
+  // page.goto (see stepLines below) — this only covers everything else: a
   // spec whose first step is a plain fill/click/verify still needs to land
   // somewhere before that first action runs, exactly like a hand-written
-  // spec would start with its own page.goto.
+  // spec would start with its own page.goto. Falls back to '/' (not
+  // skipped) when the application has no registered startPath — a browser
+  // context starts at about:blank, so a generated test needs an explicit
+  // navigation to SOME page before its first interaction regardless of
+  // whether that page happens to be the site's own root.
   const firstStepKind = spec.steps[0]?.resolved?.kind;
   const firstStepAlreadyNavigates =
     firstStepKind === 'login-helper' ||
     firstStepKind === 'login-inline' ||
     firstStepKind === 'navigate';
-  if (app.startPath && !firstStepAlreadyNavigates) {
-    bodyLines.push(`await page.goto(${JSON.stringify(app.startPath)});`);
+  if (!firstStepAlreadyNavigates) {
+    bodyLines.push(`await page.goto(${JSON.stringify(app.startPath ?? '/')});`);
   }
 
   const shouldCaptureSubmitResponse = needsSubmitResponseCapture(spec.steps);

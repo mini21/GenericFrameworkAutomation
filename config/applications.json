@@ -10,6 +10,15 @@
       "supportedBrowsers": ["chromium", "firefox", "webkit"],
       "dataProfiles": ["qa-default"],
       "startPath": "/login.html"
+    },
+    "amazon": {
+      "name": "Amazon",
+      "baseUrl": "https://www.amazon.com",
+      "modules": [],
+      "authProfiles": [],
+      "defaultBrowser": "chromium",
+      "supportedBrowsers": ["chromium"],
+      "dataProfiles": ["qa-default"]
     }
   }
 }

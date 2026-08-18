@@ -375,7 +375,29 @@ function finalizeNavigate(
 // and a button's native submit-control status corroborates the generic
 // "submit the ... request/form/application" marker — both are DOM facts
 // discovery already captured, not app-specific rules.
+//
+// A step never scores in isolation: an element candidate is tagged with the
+// page it was actually discovered on (`ElementCandidate`), and when the
+// step's pool was scoped by a page a PRECEDING step resolved to
+// (`contextPage`, threaded in from mapRequirementToUI), every candidate on
+// that same page gets a contextual bonus. This is the generic fix for
+// "same text repeated identically across many pages" (e.g. a site-wide
+// header search control appearing on every page with an identical
+// accessible name): without page context, those candidates are genuinely
+// indistinguishable by name alone and correctly stay ambiguous; with it,
+// the one instance that's actually on the page the previous step just
+// acted on outscores the rest — not because of anything Search-specific,
+// but because "the control a real user would reach next is the one on the
+// page they're already on" is true for any app/workflow.
 // ---------------------------------------------------------------------------
+
+interface ElementCandidate {
+  element: DiscoveredElement;
+  page: PageMap;
+}
+
+/** Matches the size of the other contextual bonus already in this file (findNavigationEvidence's `30 +`). */
+const SAME_PAGE_CONTEXT_BONUS = 30;
 
 function describeValue(rawValue: string | undefined): string {
   if (rawValue === '{{date:start}}') return 'startDate';
@@ -385,13 +407,15 @@ function describeValue(rawValue: string | undefined): string {
 
 function scoreElements(
   step: RawStep,
-  pool: DiscoveredElement[],
-): ScoredCandidate<DiscoveredElement>[] {
+  pool: ElementCandidate[],
+  contextPage: PageMap | undefined,
+): ScoredCandidate<ElementCandidate>[] {
   const isSubmitMarker = step.action === 'click' && step.target === 'submit';
   const target = isSubmitMarker ? undefined : step.target;
-  const results: ScoredCandidate<DiscoveredElement>[] = [];
+  const results: ScoredCandidate<ElementCandidate>[] = [];
 
-  for (const el of pool) {
+  for (const candidate of pool) {
+    const el = candidate.element;
     let score = 0;
     const reasons: string[] = [];
 
@@ -421,25 +445,42 @@ function scoreElements(
       reasons.push(`input type "${el.inputType}" corroborates the step's wording`);
     }
 
-    if (score > 0) results.push({ item: el, score, reasons });
+    if (score > 0 && contextPage && candidate.page === contextPage) {
+      score += SAME_PAGE_CONTEXT_BONUS;
+      reasons.push(
+        `on the same page ("${contextPage.pageName}") as the preceding step's resolved element`,
+      );
+    }
+
+    if (score > 0) results.push({ item: candidate, score, reasons });
   }
 
   return results;
 }
 
-function finalizeElement(step: RawStep, scored: ScoredCandidate<DiscoveredElement>[]): StepMapping {
+interface ElementOutcome {
+  mapping: StepMapping;
+  chosenPage?: PageMap;
+}
+
+function finalizeElement(
+  step: RawStep,
+  scored: ScoredCandidate<ElementCandidate>[],
+): ElementOutcome {
   const actionLabel = step.action === 'fill' ? 'fillable' : 'clickable';
   const targetLabel =
     step.action === 'click' && step.target === 'submit' ? 'a submit control' : `"${step.target}"`;
   const ranked = rankCandidates(scored);
-  const diagnostics = toCandidates(ranked, (el) => el.name);
+  const diagnostics = toCandidates(ranked, (c) => c.element.name);
 
   if (ranked.length === 0) {
     return {
-      step,
-      confidence: 'LOW',
-      unmapped: { reason: `No discovered element provides any evidence for ${targetLabel}.` },
-      diagnostics,
+      mapping: {
+        step,
+        confidence: 'LOW',
+        unmapped: { reason: `No discovered element provides any evidence for ${targetLabel}.` },
+        diagnostics,
+      },
     };
   }
 
@@ -448,46 +489,57 @@ function finalizeElement(step: RawStep, scored: ScoredCandidate<DiscoveredElemen
 
   if (confidence === 'LOW') {
     return {
-      step,
-      confidence,
-      unmapped: {
-        reason: `No discovered element confidently matches ${targetLabel}. Best candidate: "${top.item.name}" (score ${top.score}: ${top.reasons.join('; ')}).`,
+      mapping: {
+        step,
+        confidence,
+        unmapped: {
+          reason: `No discovered element confidently matches ${targetLabel}. Best candidate: "${top.item.element.name}" (score ${top.score}: ${top.reasons.join('; ')}).`,
+        },
+        diagnostics,
       },
-      diagnostics,
     };
   }
 
   if (confidence === 'MEDIUM') {
-    return { step, confidence, ambiguous: { candidates: diagnostics }, diagnostics };
+    return {
+      mapping: { step, confidence, ambiguous: { candidates: diagnostics }, diagnostics },
+    };
   }
 
-  if (!top.item.verified) {
+  const el = top.item.element;
+  const verified = el.verified;
+  if (!verified) {
     return {
-      step,
-      confidence: 'LOW',
-      unmapped: {
-        reason: `"${top.item.name}" scored as the best match for ${targetLabel} but is not currently verified as uniquely ${actionLabel}.`,
+      mapping: {
+        step,
+        confidence: 'LOW',
+        unmapped: {
+          reason: `"${el.name}" scored as the best match for ${targetLabel} but is not currently verified as uniquely ${actionLabel}.`,
+        },
+        diagnostics,
       },
-      diagnostics,
     };
   }
 
   diagnostics[0].selected = true;
   return {
-    step,
-    confidence: 'HIGH',
-    resolved: {
-      kind: step.action === 'fill' ? 'fill' : 'click',
-      description:
-        step.action === 'fill'
-          ? `ui.fill('${top.item.name}', ${describeValue(step.value)})`
-          : `ui.click('${top.item.name}')`,
-      strategy: top.item.verified.strategy,
-      confidence: top.item.verified.confidence,
-      resolvedLocator: top.item.verified.resolvedLocator,
-      detail: top.item.name,
+    mapping: {
+      step,
+      confidence: 'HIGH',
+      resolved: {
+        kind: step.action === 'fill' ? 'fill' : 'click',
+        description:
+          step.action === 'fill'
+            ? `ui.fill('${el.name}', ${describeValue(step.value)})`
+            : `ui.click('${el.name}')`,
+        strategy: verified.strategy,
+        confidence: verified.confidence,
+        resolvedLocator: verified.resolvedLocator,
+        detail: el.name,
+      },
+      diagnostics,
     },
-    diagnostics,
+    chosenPage: top.item.page,
   };
 }
 
@@ -528,14 +580,24 @@ export function mapRequirementToUI(
       continue;
     }
 
-    // fill / click
-    const pool = currentPage
-      ? step.action === 'fill'
-        ? currentPage.inputs
-        : [...currentPage.buttons, ...currentPage.links]
-      : map.pages.flatMap((p) => (step.action === 'fill' ? p.inputs : [...p.buttons, ...p.links]));
+    // fill / click — the pool is scoped to `currentPage` once one is known
+    // (set by a navigate step, OR — see below — carried forward from
+    // whichever page the PRECEDING fill/click step's own element actually
+    // came from, the same "next action happens on the page you're already
+    // on" context scoreElements's same-page bonus reflects) and otherwise
+    // spans every discovered page, each candidate tagged with its own page
+    // so scoring/propagation both know where it came from.
+    const pagesToSearch = currentPage ? [currentPage] : map.pages;
+    const pool: ElementCandidate[] = pagesToSearch.flatMap((page) =>
+      (step.action === 'fill' ? page.inputs : [...page.buttons, ...page.links]).map((element) => ({
+        element,
+        page,
+      })),
+    );
 
-    mappings.push(finalizeElement(step, scoreElements(step, pool)));
+    const outcome = finalizeElement(step, scoreElements(step, pool, currentPage));
+    mappings.push(outcome.mapping);
+    if (outcome.chosenPage) currentPage = outcome.chosenPage;
   }
 
   return mappings;

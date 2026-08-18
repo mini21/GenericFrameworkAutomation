@@ -31,6 +31,13 @@ const DATES_PATTERN = /^select\s+start\s+and\s+end\s+dates?$/i;
 const START_DATE_PATTERN = /^(?:select|enter|choose|pick|set|fill)\s+(?:the\s+)?start\s+date$/i;
 const END_DATE_PATTERN = /^(?:select|enter|choose|pick|set|fill)\s+(?:the\s+)?end\s+date$/i;
 const FILL_QUOTED_PATTERN = /^(?:fill|enter|set)\s+(.+?)\s+(?:as|to|with)\s+"([^"]+)"$/i;
+// Same fill-with-quoted-value semantic as FILL_QUOTED_PATTERN, just the
+// other common English word order — value first, then "in/into <field>"
+// ("Enter "laptop" in the search box") instead of field first, then
+// "as/to/with <value>". Still requires an explicit quoted value; still
+// never guesses which field a bare mention names.
+const FILL_VALUE_FIRST_PATTERN =
+  /^(?:fill|enter|set|type)\s+"([^"]+)"\s+(?:in|into)\s+(?:the\s+)?(.+)$/i;
 // The same action verbs as FILL_QUOTED_PATTERN, but with no quoted value at
 // all — "Enter reason", "Fill Reason". There's no safe default for
 // free-form business text, so this is deliberately NOT turned into a fill
@@ -107,6 +114,8 @@ export function parseRequirement(text: string): ParsedRequirement {
       steps.push({ action: 'login', target: match[1].trim(), raw: sentence });
     } else if ((match = FILL_QUOTED_PATTERN.exec(sentence))) {
       steps.push({ action: 'fill', target: match[1].trim(), value: match[2], raw: sentence });
+    } else if ((match = FILL_VALUE_FIRST_PATTERN.exec(sentence))) {
+      steps.push({ action: 'fill', target: match[2].trim(), value: match[1], raw: sentence });
     } else if ((match = SELECT_QUOTED_PATTERN.exec(sentence))) {
       steps.push({ action: 'fill', target: match[2].trim(), value: match[1], raw: sentence });
     } else if (SUBMIT_REQUEST_PATTERN.test(sentence)) {

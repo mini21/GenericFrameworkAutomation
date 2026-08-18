@@ -1,0 +1,26 @@
+{
+  "application": "amazon",
+  "baseUrl": "https://www.amazon.com",
+  "generatedAt": "2026-08-18T14:35:48.272Z",
+  "pages": [
+    {
+      "path": "/",
+      "url": "https://www.amazon.com/",
+      "title": "",
+      "pageName": "/",
+      "headings": [],
+      "buttons": [],
+      "links": [],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 0,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": ""
+    }
+  ],
+  "errors": []
+}

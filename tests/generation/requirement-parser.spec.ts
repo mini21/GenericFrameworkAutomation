@@ -158,4 +158,26 @@ test.describe(`Generation — requirement parser ${TAGS.SMOKE}`, () => {
     const { steps: statusApproved } = parseRequirement('Verify status is Approved.');
     expect(statusApproved).toEqual([{ action: 'verify', raw: 'Verify status is Approved' }]);
   });
+
+  test('"Enter/Fill/Set "value" in/into <field>" (value first) is recognized as the same fill-with-value semantic as "Fill <field> as "value""', () => {
+    const { steps } = parseRequirement('Enter "laptop" in the search box.');
+    expect(steps).toEqual([
+      {
+        action: 'fill',
+        target: 'search box',
+        value: 'laptop',
+        raw: 'Enter "laptop" in the search box',
+      },
+    ]);
+
+    const { steps: intoForm } = parseRequirement('Set "42" into the quantity field.');
+    expect(intoForm).toEqual([
+      {
+        action: 'fill',
+        target: 'quantity field',
+        value: '42',
+        raw: 'Set "42" into the quantity field',
+      },
+    ]);
+  });
 });
