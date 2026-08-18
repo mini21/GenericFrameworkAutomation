@@ -187,6 +187,52 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
     expect(code).not.toContain('getByText');
   });
 
+  test('a submit-marker click generates a captured HTTP response, and a following bare (role) verify asserts it succeeded — not just that an alert rendered', () => {
+    // Regression for a real defect: HRMS's single #result-message
+    // role="alert" reports BOTH success ("Leave application submitted
+    // successfully") and failure ("Requested dates overlap...") through
+    // the identical element. `getByRole('alert').toBeVisible()` alone is
+    // satisfied by either — a generated test could silently "pass" on a
+    // server-side rejection. The submit's own response.ok() is a signal
+    // no wording guess can fake.
+    const roleVerifySpec: TestSpecification = {
+      ...SPEC,
+      steps: [
+        ...SPEC.steps.slice(0, -1),
+        {
+          step: { action: 'verify', raw: 'Verify confirmation is displayed' },
+          confidence: 'HIGH',
+          diagnostics: [],
+          resolved: {
+            kind: 'verify',
+            strategy: 'role',
+            confidence: 'HIGH',
+            resolvedLocator: "getByRole('alert')",
+            description: "expect(page.getByRole('alert')).toBeVisible()",
+            detail: 'alert',
+          },
+        },
+      ],
+    };
+    const { code } = generateSpecFile(roleVerifySpec);
+    expect(code).toContain('const [submitResponse] = await Promise.all([');
+    expect(code).toContain(
+      "page.waitForResponse((response) => response.request().method() !== 'GET'),",
+    );
+    expect(code).toContain('expect(submitResponse.ok()).toBe(true);');
+    // The response assertion must come BEFORE the visibility check, and
+    // the click must come BEFORE the response assertion.
+    expect(code.indexOf('ui.click(')).toBeLessThan(code.indexOf('submitResponse.ok()'));
+    expect(code.indexOf('submitResponse.ok()')).toBeLessThan(code.indexOf('getByRole("alert")'));
+  });
+
+  test('a quoted-text verify is unaffected — no response capture, since exact expected text already discriminates success from failure', () => {
+    const { code } = generateSpecFile(SPEC); // SPEC's own last step is a quoted-text verify
+    expect(code).not.toContain('submitResponse');
+    expect(code).not.toContain('waitForResponse');
+    expect(code).toContain('await ui.click("Submit Application");');
+  });
+
   test('the next generated index is the highest existing index + 1, not a count — surviving gaps from deleted files', () => {
     // A count-based index collides the moment an earlier file is deleted
     // (e.g. -01 and -03 exist, -02 was removed: count=2 -> "next" index 3

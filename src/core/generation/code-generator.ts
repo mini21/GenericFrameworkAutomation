@@ -55,6 +55,24 @@ function usesDateMarkers(steps: StepMapping[]): boolean {
   return steps.some((s) => s.step.value === '{{date:start}}' || s.step.value === '{{date:end}}');
 }
 
+/**
+ * Only capture the submit action's HTTP response when there's exactly one
+ * submit click AND a role-based (bare) verify in the spec to consume it —
+ * anything else (a quoted-text verify, no verify at all, or more than one
+ * submit) falls back to a plain click, so a `submitResponse` variable is
+ * never declared and left unused (which would fail the generated file's
+ * own lint step) and never redeclared (a real submit-then-submit flow).
+ */
+function needsSubmitResponseCapture(steps: StepMapping[]): boolean {
+  const submitClicks = steps.filter(
+    (s) => s.resolved?.kind === 'click' && s.step.target === 'submit',
+  );
+  const hasRoleVerify = steps.some(
+    (s) => s.resolved?.kind === 'verify' && s.resolved.strategy === 'role',
+  );
+  return submitClicks.length === 1 && hasRoleVerify;
+}
+
 function loginHelperDetail(
   step: StepMapping,
 ): { moduleName: string; functionName: string; profileKey: string } | undefined {
@@ -81,7 +99,12 @@ function loginInlineDetail(
   };
 }
 
-function stepLines(step: StepMapping, applicationStartPath: string | undefined): string[] {
+function stepLines(
+  step: StepMapping,
+  applicationStartPath: string | undefined,
+  shouldCaptureSubmitResponse: boolean,
+  submitResponseCaptured: boolean,
+): string[] {
   const resolved = step.resolved;
   if (!resolved) {
     // Enforced by the caller (gap-generate.ts) never calling this generator
@@ -123,16 +146,44 @@ function stepLines(step: StepMapping, applicationStartPath: string | undefined):
         `await ui.fill(${JSON.stringify(resolved.detail ?? '')}, ${valueExpression(step.step.value)});`,
       ];
     case 'click':
+      if (step.step.target === 'submit' && shouldCaptureSubmitResponse) {
+        // A submit control's own alert/status region often reports BOTH
+        // success and failure through the same element (HRMS's single
+        // #result-message role="alert" is a real example) — "some alert
+        // became visible" alone can't tell those apart without guessing
+        // the app's exact success wording. The submit action's own HTTP
+        // response is a generic, non-guessed signal every form-via-fetch
+        // app already provides; captured here so a later bare verify (see
+        // below) can assert the operation actually succeeded, not just
+        // that *a* message rendered.
+        return [
+          `const [submitResponse] = await Promise.all([`,
+          `  page.waitForResponse((response) => response.request().method() !== 'GET'),`,
+          `  ui.click(${JSON.stringify(resolved.detail ?? '')}),`,
+          `]);`,
+        ];
+      }
       return [`await ui.click(${JSON.stringify(resolved.detail ?? '')});`];
-    case 'verify':
+    case 'verify': {
       // A quoted expected text asserts by text; a bare verify resolved
       // against a discovered ARIA live region (see ui-mapper.ts's
       // mapVerify) asserts by role instead — resolved.strategy === 'role'
       // is the marker distinguishing the two, same field LocatorResolver
       // itself already uses for fill/click steps.
-      return resolved.strategy === 'role'
-        ? [`await expect(page.getByRole(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`]
-        : [`await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`];
+      if (resolved.strategy !== 'role') {
+        return [
+          `await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`,
+        ];
+      }
+      const lines: string[] = [];
+      if (submitResponseCaptured) {
+        lines.push(`expect(submitResponse.ok()).toBe(true);`);
+      }
+      lines.push(
+        `await expect(page.getByRole(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`,
+      );
+      return lines;
+    }
     default:
       throw new Error(`Unknown resolved step kind: ${String((resolved as { kind: string }).kind)}`);
   }
@@ -233,8 +284,19 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
       '',
     );
   }
+  const shouldCaptureSubmitResponse = needsSubmitResponseCapture(spec.steps);
+  let submitResponseCaptured = false;
   for (const step of spec.steps) {
-    bodyLines.push(...stepLines(step, app.startPath));
+    bodyLines.push(
+      ...stepLines(step, app.startPath, shouldCaptureSubmitResponse, submitResponseCaptured),
+    );
+    if (
+      step.resolved?.kind === 'click' &&
+      step.step.target === 'submit' &&
+      shouldCaptureSubmitResponse
+    ) {
+      submitResponseCaptured = true;
+    }
   }
 
   const importLines = [
