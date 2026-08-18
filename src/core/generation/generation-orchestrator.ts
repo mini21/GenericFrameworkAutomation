@@ -79,13 +79,21 @@ function mapPath(application: string): string {
  * that path is what the caller meant to start crawling from — discarding
  * it and always crawling `/` is what caused Generate to hit a 404 on
  * apps with no root route, even though the user's URL pointed straight
- * at a real page. A bare-origin URL (no path) falls back to the same
- * generic `/` default `gap:discover` itself uses. Never app-specific.
+ * at a real page. A bare-origin URL (no path) falls back to this
+ * application's own registered `startPath` (set once at onboarding —
+ * `npm run gap:onboard -- ... --startPath=/dashboard.html` — so every
+ * later call doesn't need to repeat it), and only then the generic `/`
+ * default `gap:discover` itself uses. Never app-specific in this function.
  */
-export function resolveStartPath(url: string, explicitStartPath: string | undefined): string {
+export function resolveStartPath(
+  url: string,
+  explicitStartPath: string | undefined,
+  registeredStartPath?: string,
+): string {
   if (explicitStartPath) return explicitStartPath;
   const { pathname } = new URL(url);
-  return pathname && pathname !== '/' ? pathname : '/';
+  if (pathname && pathname !== '/') return pathname;
+  return registeredStartPath || '/';
 }
 
 /**
@@ -140,7 +148,11 @@ async function loadOrDiscoverMap(
         baseURL: input.url,
         storageState: input.storageStatePath,
       });
-      let startPath = resolveStartPath(input.url, input.startPath);
+      let startPath = resolveStartPath(
+        input.url,
+        input.startPath,
+        getApplication(input.application).startPath,
+      );
 
       // No pre-captured session? If this page turns out to genuinely be a
       // login form, and this application has a registered credential

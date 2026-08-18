@@ -12,6 +12,8 @@ export interface ApplicationDefinition {
   defaultBrowser: BrowserName;
   supportedBrowsers: BrowserName[];
   dataProfiles: string[];
+  /** Discovery's default entry path for this application (e.g. "/dashboard.html" for an app with no route at "/") — overridable per-call via --start-path, never required. */
+  startPath?: string;
 }
 
 export type ApplicationRegistry = Record<string, ApplicationDefinition>;

@@ -12,6 +12,7 @@ interface OnboardArgs {
   defaultBrowser: string;
   browsers: string[];
   dataProfiles: string[];
+  startPath?: string;
 }
 
 function splitList(value: string | undefined, fallback: string[]): string[] {
@@ -34,6 +35,7 @@ function parseCliArgs(): OnboardArgs {
       defaultBrowser: { type: 'string', default: 'chromium' },
       browsers: { type: 'string' },
       dataProfiles: { type: 'string' },
+      startPath: { type: 'string' },
     },
     strict: true,
   });
@@ -42,7 +44,7 @@ function parseCliArgs(): OnboardArgs {
     throw new Error(
       'Usage: npm run gap:onboard -- --id=<id> --name="<Display Name>" --baseUrl=<url> ' +
         '[--apiBaseUrl=<url>] [--modules=a,b] [--authProfiles=x,y] [--defaultBrowser=chromium] ' +
-        '[--browsers=chromium,firefox,webkit] [--dataProfiles=qa-default]',
+        '[--browsers=chromium,firefox,webkit] [--dataProfiles=qa-default] [--startPath=/dashboard.html]',
     );
   }
 
@@ -56,6 +58,7 @@ function parseCliArgs(): OnboardArgs {
     defaultBrowser: values.defaultBrowser ?? 'chromium',
     browsers: splitList(values.browsers, [values.defaultBrowser ?? 'chromium']),
     dataProfiles: splitList(values.dataProfiles, ['qa-default']),
+    startPath: values.startPath,
   };
 }
 
@@ -78,6 +81,7 @@ function updateRegistry(args: OnboardArgs): void {
     defaultBrowser: args.defaultBrowser,
     supportedBrowsers: args.browsers,
     dataProfiles: args.dataProfiles,
+    ...(args.startPath ? { startPath: args.startPath } : {}),
   };
 
   fs.writeFileSync(registryPath, `${JSON.stringify(registryFile, null, 2)}\n`, 'utf-8');

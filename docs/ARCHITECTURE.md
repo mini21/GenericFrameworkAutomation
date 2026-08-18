@@ -106,6 +106,36 @@ needs to change.
 - **Winston** logger, console + file transport, level controlled by `LOG_LEVEL`; failure logs are attached alongside report artifacts.
 - **Locator Intelligence healing/reduced-confidence reports** and the **coverage report** both use `testInfo.attach()` — a native Playwright mechanism, so they appear in the HTML report and Allure automatically, with no bespoke Allure API usage anywhere in the framework.
 
+## Extending to a new test type (UI / API / responsive / load)
+
+The execution model is `application + environment + module + test type +
+browser/profile` — a Playwright **project** per type, each with its own
+`testMatch` glob following the same `applications/<id>/tests/<type>/**`
+convention every existing type already uses. Adding a type is a single,
+one-time addition to `playwright.config.ts` (a `testMatch` const + a
+`projects` entry); after that, every application's own specs for that
+type need zero core-code changes — onboarding, discovery, generation,
+`GAP_APPLICATION`/`BASE_URL` resolution, and reporting all already work
+per-application generically, regardless of test type.
+
+- **UI** and **API** — implemented, exercised by the full HRMS suite and `tests/api/`.
+- **Responsive** — implemented as a real, working example
+  (`applications/hrms/tests/responsive/login-responsive.spec.ts`, `responsive`
+  project): the same `page`/`ui` fixtures and `LocatorResolver` every UI test
+  uses, with a per-test `test.use({ viewport })` override — Playwright's own
+  native mechanism, not a new engine.
+- **Load** — **not implemented.** Load testing is a fundamentally different
+  paradigm (sustained concurrent request generation against an API, not
+  driving a browser), and building a real one wasn't warranted without an
+  actual load-testing need driving requirements. The extension point is
+  proven by the pattern above: a team adding it would (1) add a `load`
+  `testMatch`/project here pointing at `applications/*/tests/load/**`, (2)
+  route execution through a tool suited to that workload (k6, Artillery,
+  or Playwright's own `APIRequestContext` for lightweight concurrent-request
+  scripts) invoked from a spec in that directory, and (3) report results
+  through `testInfo.attach()` like every other type, for the same HTML/JUnit/Allure
+  integration. No application or core-framework code needs to change to add it.
+
 ## Key Design Decisions
 
 | Decision                                                   | Rationale                                                                                                                                                                                                                            |

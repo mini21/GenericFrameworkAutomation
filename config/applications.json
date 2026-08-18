@@ -8,7 +8,8 @@
       "authProfiles": ["employee", "manager"],
       "defaultBrowser": "chromium",
       "supportedBrowsers": ["chromium", "firefox", "webkit"],
-      "dataProfiles": ["qa-default"]
+      "dataProfiles": ["qa-default"],
+      "startPath": "/login.html"
     }
   }
 }

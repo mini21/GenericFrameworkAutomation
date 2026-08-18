@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { test, expect } from '../../src/core/fixtures/base.fixture';
 import { generateSpecFile } from '../../src/core/generation/code-generator';
 import { TestSpecification } from '../../src/core/generation/generation-types';
@@ -158,5 +160,27 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
     expect(() => generateSpecFile(unmappedSpec)).toThrow(
       /Cannot generate code for an unmapped step/,
     );
+  });
+
+  test('the next generated index is the highest existing index + 1, not a count — surviving gaps from deleted files', () => {
+    // A count-based index collides the moment an earlier file is deleted
+    // (e.g. -01 and -03 exist, -02 was removed: count=2 -> "next" index 3
+    // collides with the -03 file that's still on disk). Uses an isolated
+    // module name so this never touches real generated files.
+    const module = `gapindextest${Date.now()}`;
+    const dir = path.resolve(process.cwd(), 'applications/hrms/tests/ui/generated');
+    fs.mkdirSync(dir, { recursive: true });
+    const gapFile1 = path.join(dir, `${module}-01-x.spec.ts`);
+    const gapFile3 = path.join(dir, `${module}-03-x.spec.ts`);
+    fs.writeFileSync(gapFile1, '');
+    fs.writeFileSync(gapFile3, '');
+
+    try {
+      const generated = generateSpecFile({ ...SPEC, module });
+      expect(generated.filePath).toMatch(new RegExp(`${module}-04-`));
+    } finally {
+      fs.rmSync(gapFile1, { force: true });
+      fs.rmSync(gapFile3, { force: true });
+    }
   });
 });

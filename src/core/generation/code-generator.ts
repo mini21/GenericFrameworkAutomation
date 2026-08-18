@@ -25,15 +25,24 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-/** Continues the same per-module counter requirements.json uses, applied to the stable test-id namespace instead. */
+/**
+ * Continues the same per-module counter requirements.json uses, applied to
+ * the stable test-id namespace instead. Takes the highest existing index
+ * and adds one — NOT a count of existing files — so deleting an earlier
+ * generated file (e.g. during cleanup) never causes a later regeneration
+ * to collide with a file that's still on disk.
+ */
 function nextGeneratedIndex(application: string, module: string): number {
   const dir = path.resolve(process.cwd(), 'applications', application, 'tests', 'ui', 'generated');
   if (!fs.existsSync(dir)) return 1;
   const prefix = `${module}-`;
-  const existing = fs
+  const pattern = new RegExp(`^${prefix}(\\d+)-`);
+  const highest = fs
     .readdirSync(dir)
-    .filter((f) => f.startsWith(prefix) && f.endsWith('.spec.ts'));
-  return existing.length + 1;
+    .filter((f) => f.startsWith(prefix) && f.endsWith('.spec.ts'))
+    .map((f) => Number(pattern.exec(f)?.[1] ?? 0))
+    .reduce((max, n) => Math.max(max, n), 0);
+  return highest + 1;
 }
 
 function valueExpression(rawValue: string | undefined): string {

@@ -26,4 +26,22 @@ test.describe(`Generation — Generate/Discovery start-path resolution ${TAGS.SM
   test('an explicit --start-path wins over a bare-origin --url too', () => {
     expect(resolveStartPath('http://example.test', '/dashboard.html')).toBe('/dashboard.html');
   });
+
+  test('a bare-origin --url falls back to the application\'s own registered startPath before the generic "/" default', () => {
+    expect(resolveStartPath('http://example.test', undefined, '/app-home.html')).toBe(
+      '/app-home.html',
+    );
+  });
+
+  test('a path already embedded in --url still wins over the registered startPath', () => {
+    expect(resolveStartPath('http://example.test/login.html', undefined, '/app-home.html')).toBe(
+      '/login.html',
+    );
+  });
+
+  test('an explicit --start-path still wins over the registered startPath too', () => {
+    expect(resolveStartPath('http://example.test', '/other.html', '/app-home.html')).toBe(
+      '/other.html',
+    );
+  });
 });
