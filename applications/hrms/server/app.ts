@@ -1,6 +1,7 @@
 import express from 'express';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { TEST_ISOLATION_HEADER } from '../../../src/core/constants';
 
 export type Role = 'employee' | 'manager';
 
@@ -22,6 +23,27 @@ export interface LeaveRequest {
   reason: string;
   status: LeaveStatus;
   createdAt: string;
+  /** See `isolationKeyOf` below — undefined for any caller that doesn't send it. */
+  isolationToken?: string;
+}
+
+// This in-memory reference app has one shared `leaveRequests` array with no
+// per-test reset — by design, so it behaves like a real stateful backend.
+// Concurrent/sequential automated test runs would otherwise collide on it
+// (the same fixed test employee applying for the same fixed date range from
+// two different test files, or a manager's aggregate view picking up another
+// still-pending test's request). The framework's `page`/`request` fixtures
+// (see src/core/fixtures/test-isolation.fixture.ts) tag every request from
+// one test with that test's own stable id via this header — entirely
+// optional and app-agnostic on the framework side. This reference app is
+// the one choosing to use it, to partition state per test the same way a
+// real multi-tenant backend partitions per tenant. A caller that never
+// sends the header (e.g. a real user, or a raw curl) is unaffected: it
+// simply shares the single undefined-token bucket, exactly as before this
+// existed.
+function isolationKeyOf(req: express.Request): string | undefined {
+  const header = req.headers[TEST_ISOLATION_HEADER];
+  return typeof header === 'string' ? header : undefined;
 }
 
 // Deliberately fake, local-only reference-app credentials — not real
@@ -138,15 +160,16 @@ export function createApp(): express.Express {
 
   app.get('/api/leave', requireAuth(), (req: AuthedRequest, res) => {
     const user = req.user as User;
+    const isolationKey = isolationKeyOf(req);
+    const inScope = leaveRequests.filter((r) => r.isolationToken === isolationKey);
     const requests =
-      user.role === 'manager'
-        ? leaveRequests
-        : leaveRequests.filter((r) => r.employeeId === user.id);
+      user.role === 'manager' ? inScope : inScope.filter((r) => r.employeeId === user.id);
     res.json({ requests });
   });
 
   app.post('/api/leave/apply', requireAuth('employee'), (req: AuthedRequest, res) => {
     const user = req.user as User;
+    const isolationKey = isolationKeyOf(req);
     const { startDate, endDate, reason } = req.body ?? {};
 
     if (!startDate || !endDate || !reason) {
@@ -161,6 +184,7 @@ export function createApp(): express.Express {
     const overlapping = leaveRequests.some(
       (r) =>
         r.employeeId === user.id &&
+        r.isolationToken === isolationKey &&
         (r.status === 'pending' || r.status === 'approved') &&
         datesOverlap(startDate, endDate, r.startDate, r.endDate),
     );
@@ -179,6 +203,7 @@ export function createApp(): express.Express {
       reason,
       status: 'pending',
       createdAt: new Date().toISOString(),
+      isolationToken: isolationKey,
     };
     leaveRequests.push(request);
     res.status(201).json({ request });
