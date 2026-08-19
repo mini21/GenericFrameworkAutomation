@@ -135,6 +135,10 @@ async function runGenerationJob(job: Job, input: GenerateRequestBody): Promise<v
           label: c.label,
           description: c.reasons.join('; '),
           value: c.value,
+          pageName: c.pageName,
+          pageUrl: c.pageUrl,
+          relationship: c.relationship,
+          matchConfidence: c.matchConfidence,
         })),
       );
       return answer;

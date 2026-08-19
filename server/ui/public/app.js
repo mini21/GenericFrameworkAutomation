@@ -362,23 +362,43 @@ function renderProgress() {
   if (state.pendingQuestion) renderQuestionCard(state.pendingQuestion);
 }
 
+// A candidate carrying real structural context (which page it lives on,
+// its relationship to the preceding step's own resolved element) renders
+// that context as labeled lines instead of just a bare name — the fix for
+// "N visually identical choices" when several discovered elements share an
+// accessible name (e.g. a site-wide header control repeated on every
+// page). Purely additive: a candidate with none of these optional fields
+// (any other kind of ambiguity) still renders exactly as before.
+function renderCandidateCard(c, index) {
+  const contextLines = [
+    c.pageName ? `<div class="candidate-ctx"><strong>Page:</strong> ${esc(c.pageName)}</div>` : '',
+    c.pageUrl ? `<div class="candidate-ctx"><strong>URL:</strong> ${esc(c.pageUrl)}</div>` : '',
+    c.relationship
+      ? `<div class="candidate-ctx"><strong>Relationship:</strong> ${esc(c.relationship)}</div>`
+      : '',
+    c.matchConfidence
+      ? `<div class="candidate-ctx"><strong>Confidence:</strong> ${esc(c.matchConfidence)}</div>`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('');
+  return `
+    <div class="candidate" data-index="${index}">
+      <div>
+        <div class="label">${esc(c.label)}</div>
+        <div class="desc">${esc(c.description)}</div>
+        ${contextLines}
+      </div>
+    </div>`;
+}
+
 function renderQuestionCard(question) {
   const slot = document.getElementById('question-slot');
   if (question.kind === 'ambiguity' && question.candidates?.length) {
     slot.innerHTML = `
       <div class="question-card">
         <h3>${esc(question.prompt)}</h3>
-        ${question.candidates
-          .map(
-            (c, i) => `
-          <div class="candidate" data-index="${i}">
-            <div>
-              <div class="label">${esc(c.label)}</div>
-              <div class="desc">${esc(c.description)}</div>
-            </div>
-          </div>`,
-          )
-          .join('')}
+        ${question.candidates.map((c, i) => renderCandidateCard(c, i)).join('')}
         <div class="btn-row">
           <button class="btn btn-secondary" id="q-skip">None of these — skip</button>
         </div>

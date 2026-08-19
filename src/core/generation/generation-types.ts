@@ -41,6 +41,19 @@ export interface MappingCandidate {
   score: number;
   reasons: string[];
   selected: boolean;
+  /**
+   * Present only for an element (fill/click) candidate — which discovered
+   * page it actually lives on. Lets a human disambiguation prompt show
+   * real structural context ("Page: X — URL: Y") instead of N visually
+   * identical labels when several pages carry an identically-named
+   * control (e.g. a site-wide header search icon) — see ui-mapper.ts.
+   */
+  pageName?: string;
+  pageUrl?: string;
+  /** Plain-English relationship to the page a PRECEDING step's own resolved element came from, e.g. "Same page as the previous step" — omitted when there's no preceding-step context to compare against. */
+  relationship?: string;
+  /** Qualitative read of `score`, for display without exposing the raw number's meaning. */
+  matchConfidence?: 'High' | 'Medium' | 'Low';
 }
 
 export interface StepMapping {

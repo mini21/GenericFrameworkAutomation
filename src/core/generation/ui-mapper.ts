@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ApplicationMap, DiscoveredElement, PageMap } from '../discovery/discovery-types';
 import { MappingCandidate, RawStep, StepMapping } from './generation-types';
+import { hasApplication, getApplication } from '../config/application-registry';
 import {
   classifyConfidence,
   rankCandidates,
@@ -288,17 +289,37 @@ function scorePages(target: string, pages: PageMap[]): ScoredCandidate<PageMap>[
   return results;
 }
 
+/** Same tiering as classifyConfidence's own thresholds, exposed per-candidate for display. */
+function matchConfidenceFor(score: number): 'High' | 'Medium' | 'Low' {
+  if (score >= 60) return 'High';
+  if (score >= 20) return 'Medium';
+  return 'Low';
+}
+
 function toCandidates<T>(
   ranked: ScoredCandidate<T>[],
   labelOf: (item: T) => string,
+  contextOf?: (item: T) => { pageName: string; pageUrl: string; samePage?: boolean } | undefined,
 ): MappingCandidate[] {
-  return ranked.slice(0, MAX_DISPLAYED_CANDIDATES).map((c) => ({
-    label: labelOf(c.item),
-    value: labelOf(c.item),
-    score: c.score,
-    reasons: c.reasons,
-    selected: false,
-  }));
+  return ranked.slice(0, MAX_DISPLAYED_CANDIDATES).map((c) => {
+    const ctx = contextOf?.(c.item);
+    return {
+      label: labelOf(c.item),
+      value: labelOf(c.item),
+      score: c.score,
+      reasons: c.reasons,
+      selected: false,
+      matchConfidence: matchConfidenceFor(c.score),
+      pageName: ctx?.pageName,
+      pageUrl: ctx?.pageUrl,
+      relationship:
+        ctx?.samePage === undefined
+          ? undefined
+          : ctx.samePage
+            ? "Same page as the previous step's resolved element"
+            : "A different page than the previous step's resolved element",
+    };
+  });
 }
 
 interface NavigateOutcome {
@@ -389,6 +410,17 @@ function finalizeNavigate(
 // acted on outscores the rest — not because of anything Search-specific,
 // but because "the control a real user would reach next is the one on the
 // page they're already on" is true for any app/workflow.
+//
+// The FIRST fill/click step (no preceding step at all) gets the same kind
+// of bonus from a different, equally generic source: the application's own
+// configured start page (`config/applications.json`'s `startPath`, default
+// '/') — the exact page code-generator.ts's prepended `page.goto(...)`
+// actually lands the generated test on before its first action runs (see
+// generateSpecFile). A candidate that happens to live there is, concretely,
+// on the one page this step's action will really execute against — real
+// structural context, not a guess, and only ever a scoring bonus (never a
+// pool restriction the way a genuinely resolved `contextPage` is), so a
+// step whose real evidence points elsewhere still wins normally.
 // ---------------------------------------------------------------------------
 
 interface ElementCandidate {
@@ -409,6 +441,7 @@ function scoreElements(
   step: RawStep,
   pool: ElementCandidate[],
   contextPage: PageMap | undefined,
+  startPage: PageMap | undefined,
 ): ScoredCandidate<ElementCandidate>[] {
   const isSubmitMarker = step.action === 'click' && step.target === 'submit';
   const target = isSubmitMarker ? undefined : step.target;
@@ -450,6 +483,13 @@ function scoreElements(
       reasons.push(
         `on the same page ("${contextPage.pageName}") as the preceding step's resolved element`,
       );
+    } else if (score > 0 && !contextPage && startPage && candidate.page === startPage) {
+      // Only when there's no REAL preceding-step page yet — a genuinely
+      // resolved contextPage is always the stronger, more specific signal.
+      score += SAME_PAGE_CONTEXT_BONUS;
+      reasons.push(
+        `on the application's configured starting page ("${startPage.pageName}") — where this step's action actually begins`,
+      );
     }
 
     if (score > 0) results.push({ item: candidate, score, reasons });
@@ -466,12 +506,21 @@ interface ElementOutcome {
 function finalizeElement(
   step: RawStep,
   scored: ScoredCandidate<ElementCandidate>[],
+  contextPage: PageMap | undefined,
 ): ElementOutcome {
   const actionLabel = step.action === 'fill' ? 'fillable' : 'clickable';
   const targetLabel =
     step.action === 'click' && step.target === 'submit' ? 'a submit control' : `"${step.target}"`;
   const ranked = rankCandidates(scored);
-  const diagnostics = toCandidates(ranked, (c) => c.element.name);
+  const diagnostics = toCandidates(
+    ranked,
+    (c) => c.element.name,
+    (c) => ({
+      pageName: c.page.pageName,
+      pageUrl: c.page.url,
+      samePage: contextPage ? c.page === contextPage : undefined,
+    }),
+  );
 
   if (ranked.length === 0) {
     return {
@@ -559,6 +608,15 @@ export function mapRequirementToUI(
 ): StepMapping[] {
   const mappings: StepMapping[] = [];
   let currentPage: PageMap | undefined;
+  // The page a generated test's own prepended page.goto(app.startPath)
+  // actually lands on (see code-generator.ts's generateSpecFile) — used
+  // ONLY as a scoring bonus for a fill/click step with no real preceding-
+  // step context yet (see scoreElements above). `hasApplication` guards a
+  // synthetic/unregistered application id (e.g. a test fixture) — no
+  // startPath assumption is made for those, same as before this existed.
+  const startPage = hasApplication(application)
+    ? map.pages.find((p) => p.path === (getApplication(application).startPath ?? '/'))
+    : undefined;
 
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
@@ -595,7 +653,11 @@ export function mapRequirementToUI(
       })),
     );
 
-    const outcome = finalizeElement(step, scoreElements(step, pool, currentPage));
+    const outcome = finalizeElement(
+      step,
+      scoreElements(step, pool, currentPage, startPage),
+      currentPage,
+    );
     mappings.push(outcome.mapping);
     if (outcome.chosenPage) currentPage = outcome.chosenPage;
   }

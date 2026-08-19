@@ -6,6 +6,26 @@ import {
 } from '../../src/core/generation/generation-orchestrator';
 import { LiveEvent } from '../../src/core/execution/live-events';
 
+/**
+ * One candidate on an ambiguity question card — carries real structural
+ * context (which page it lives on, its relationship to the preceding
+ * step's own resolved element) so a Manual QA sees WHY several candidates
+ * share a label, rather than N visually identical choices. Mirrors
+ * MappingCandidate's own optional fields (src/core/generation/
+ * generation-types.ts) verbatim — this is that same data, just renamed
+ * `description` for the existing "why it matched" prose the UI already
+ * shows.
+ */
+export interface QuestionCandidate {
+  label: string;
+  description: string;
+  value: string;
+  pageName?: string;
+  pageUrl?: string;
+  relationship?: string;
+  matchConfidence?: 'High' | 'Medium' | 'Low';
+}
+
 export type JobEvent =
   | { type: 'phase'; phase: GenerationPhase; detail?: string }
   | {
@@ -13,7 +33,7 @@ export type JobEvent =
       questionId: string;
       kind: 'missing-value' | 'ambiguity';
       prompt: string;
-      candidates?: { label: string; description: string; value: string }[];
+      candidates?: QuestionCandidate[];
     }
   | {
       type: 'ready-for-approval';
@@ -87,7 +107,7 @@ export class Job {
   askQuestion(
     kind: 'missing-value' | 'ambiguity',
     prompt: string,
-    candidates?: { label: string; description: string; value: string }[],
+    candidates?: QuestionCandidate[],
   ): Promise<string | undefined> {
     return new Promise((resolve) => {
       const questionId = randomUUID();
