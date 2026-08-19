@@ -369,9 +369,14 @@ test.describe(`Generation — confidence-driven candidate resolution ${TAGS.SMOK
         ]),
       ],
     };
+    // Deliberately notification-flavored wording (not "results"/"items"/
+    // "list") — this test is specifically about alert/status equivalence;
+    // a CONTENT-flavored assertion now resolves via a different, more
+    // appropriate mechanism entirely (see the dedicated content-assertion
+    // tests below), so it must not accidentally exercise that path here.
     const steps: RawStep[] = [
       { action: 'navigate', target: 'Result', raw: 'Open Result' },
-      { action: 'verify', raw: 'Verify that search results are displayed' },
+      { action: 'verify', raw: 'Verify confirmation message is displayed' },
     ];
     const mappings = mapRequirementToUI('genericapp', map, steps);
     expect(mappings[1].confidence).toBe('HIGH');
@@ -475,5 +480,408 @@ test.describe(`Generation — confidence-driven candidate resolution ${TAGS.SMOK
     expect(mappings[1].resolved).toBeUndefined();
     expect(mappings[1].ambiguous).toBeUndefined();
     expect(mappings[1].unmapped?.reason).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reproduces the FOLLOW-UP reported defect: even after the start-page bonus
+// (above), a step 1 fill target could still surface 5 candidates from
+// mostly-irrelevant pages (a 404 error page, an "about" page, a privacy
+// page, ...) because a page-irrelevant EXACT string match ("Search") could
+// outscore the actually-relevant input ("Search Amazon") on the real start
+// page even WITH the bonus — an additive score can never fully overcome a
+// big enough raw name-match gap. Fixed architecturally (see
+// mapRequirementToUI's `elementPool`/primaryPage logic): page/context
+// filtering is now a PRE-FILTER stage, before semantic name scoring ever
+// runs — the start/current page's own candidates are tried FIRST and, as
+// long as ANY exist, win outright, with cross-page search only as a
+// fallback when that page has nothing at all. Nothing here is
+// Amazon-specific — a registered "gap-test-*" fixture app stands in, and
+// the "irrelevant" pages are named generically (Help/About/Settings).
+// ---------------------------------------------------------------------------
+
+test.describe(`Generation — page-context pre-filtering (action-aware resolution) ${TAGS.SMOKE}`, () => {
+  test('1. a fill target never considers a button/link candidate at all, even one that exact-matches by name', () => {
+    const map: ApplicationMap = {
+      application: 'x',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        {
+          ...searchPage('Home', '/', false),
+          // The ONLY "Search"-named thing on this page is a button/link —
+          // never a candidate for a fill action, no matter how well its
+          // name matches.
+          buttons: [{ role: 'button', name: 'Search', verified: VERIFIED }],
+          links: [{ role: 'link', name: 'Search', verified: VERIFIED }],
+        },
+      ],
+    };
+    const steps: RawStep[] = [
+      {
+        action: 'fill',
+        target: 'search box',
+        value: 'laptop',
+        raw: 'Enter "laptop" in the search box.',
+      },
+    ];
+    const [mapping] = mapRequirementToUI('genericapp', map, steps);
+    expect(mapping.resolved).toBeUndefined();
+    expect(mapping.confidence).toBe('LOW');
+    expect(mapping.diagnostics.length).toBe(0); // no button/link ever entered scoring
+  });
+
+  test('2. an exact-name match on an irrelevant page never outscores the real search input on the application start page', () => {
+    const id = `gap-test-pagefilter-${Date.now()}`;
+    registerApplication(id, {
+      name: 'Page Filter Test App',
+      baseUrl: 'http://localhost:9999',
+      modules: [],
+      authProfiles: [],
+      defaultBrowser: 'chromium',
+      supportedBrowsers: ['chromium'],
+      dataProfiles: [],
+      // No startPath -> defaults to '/', exactly like Amazon.
+    });
+    try {
+      const homeInput: PageMap = {
+        ...searchPage('Home', '/', true),
+        inputs: [{ role: 'textbox', name: 'Search Amazon', verified: VERIFIED }],
+      };
+      const helpPage: PageMap = {
+        ...searchPage('Help', '/help', false),
+        buttons: [],
+        links: [],
+        // An EXACT string match ("search" === "search") — deliberately
+        // the strongest possible raw name score, on a page that has
+        // nothing to do with the actual product-search workflow.
+        inputs: [{ role: 'textbox', name: 'Search', verified: VERIFIED }],
+      };
+      const aboutPage: PageMap = {
+        ...searchPage('About', '/about', false),
+        buttons: [],
+        links: [],
+        inputs: [{ role: 'textbox', name: 'Search', verified: VERIFIED }],
+      };
+      const map: ApplicationMap = {
+        application: id,
+        baseUrl: 'http://localhost:9999',
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        errors: [],
+        pages: [homeInput, helpPage, aboutPage],
+      };
+      const steps: RawStep[] = [
+        {
+          action: 'fill',
+          target: 'search box',
+          value: 'laptop',
+          raw: 'Enter "laptop" in the search box.',
+        },
+      ];
+      const [mapping] = mapRequirementToUI(id, map, steps);
+      expect(mapping.confidence).toBe('HIGH');
+      expect(mapping.ambiguous).toBeUndefined();
+      expect(mapping.resolved?.description).toBe("ui.fill('Search Amazon', 'laptop')");
+      expect(mapping.diagnostics.length).toBe(1); // Help/About were never even in the pool
+    } finally {
+      cleanUpApp(id);
+    }
+  });
+
+  test('3. a search input followed by submit resolves the submit control using that same page/form context', () => {
+    const id = `gap-test-pagefilter-submit-${Date.now()}`;
+    registerApplication(id, {
+      name: 'Page Filter Submit App',
+      baseUrl: 'http://localhost:9999',
+      modules: [],
+      authProfiles: [],
+      defaultBrowser: 'chromium',
+      supportedBrowsers: ['chromium'],
+      dataProfiles: [],
+    });
+    try {
+      const home: PageMap = {
+        ...searchPage('Home', '/', true),
+        inputs: [{ role: 'textbox', name: 'Search Amazon', verified: VERIFIED }],
+        buttons: [{ role: 'button', name: 'Go', isSubmit: true, verified: VERIFIED }],
+      };
+      const settingsPage: PageMap = {
+        ...searchPage('Settings', '/settings', false),
+        inputs: [],
+        buttons: [{ role: 'button', name: 'Go', isSubmit: true, verified: VERIFIED }],
+      };
+      const map: ApplicationMap = {
+        application: id,
+        baseUrl: 'http://localhost:9999',
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        errors: [],
+        pages: [home, settingsPage],
+      };
+      const steps: RawStep[] = [
+        {
+          action: 'fill',
+          target: 'search box',
+          value: 'laptop',
+          raw: 'Enter "laptop" in the search box.',
+        },
+        { action: 'click', target: 'submit', raw: 'Submit the search.' },
+      ];
+      const mappings = mapRequirementToUI(id, map, steps);
+      expect(mappings[0].confidence).toBe('HIGH');
+      expect(mappings[1].confidence).toBe('HIGH');
+      expect(mappings[1].diagnostics.length).toBe(1); // Settings' own "Go" was never a candidate
+      expect(mappings[1].diagnostics[0].pageName).toBe('Home');
+    } finally {
+      cleanUpApp(id);
+    }
+  });
+
+  test('4. multiple alert/status live regions auto-resolve a NOTIFICATION assertion, never a technical role question', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        confirmationPage([
+          { role: 'alert', unique: true },
+          { role: 'status', unique: true },
+        ]),
+      ],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify confirmation message is displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].ambiguous).toBeUndefined();
+  });
+
+  test('5. two genuinely different forms with no distinguishing context still ask the Manual QA', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        searchPage('Employee Form', '/employee', false),
+        searchPage('Manager Form', '/manager', false),
+      ],
+    };
+    const steps: RawStep[] = [{ action: 'click', target: 'Search', raw: 'Submit the form' }];
+    const [mapping] = mapRequirementToUI('genericapp', map, steps);
+    expect(mapping.confidence).toBe('MEDIUM');
+    expect(mapping.ambiguous?.candidates.length).toBe(2);
+  });
+
+  test('6. the same text on unrelated pages resolves via page/context once a preceding step establishes it', () => {
+    const steps: RawStep[] = [
+      {
+        action: 'fill',
+        target: 'Search',
+        value: 'laptop',
+        raw: 'Enter "laptop" in the search box',
+      },
+      { action: 'click', target: 'Search', raw: 'Submit the search' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', MAP, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].ambiguous).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Assertion-INTENT classification — a bare verify is not one undifferentiated
+// "something was announced" check. A CONTENT assertion ("search results"/
+// "product list"/"matching items" are displayed) asks whether actual result
+// content rendered — an ARIA live region does not reliably answer that (it
+// can exist and stay empty while results render via an ordinary page
+// navigation, no live-region update involved at all — a very common real
+// pattern, and exactly what broke the Amazon acceptance test: a discovered
+// "status" region resolved and passed generation, but nothing ever made it
+// visible on the real results page). A NOTIFICATION assertion ("success
+// message"/"error"/"confirmation") is exactly what a live region DOES
+// represent, and keeps using it. Classification is by the step's OWN
+// generic English wording only — no per-application vocabulary.
+// ---------------------------------------------------------------------------
+test.describe(`Generation — assertion-intent classification (content vs notification) ${TAGS.SMOKE}`, () => {
+  test('1. "Verify search results are displayed" prefers result content over a status/alert region', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [confirmationPage([{ role: 'status', unique: true }])],
+    };
+    const steps: RawStep[] = [
+      {
+        action: 'fill',
+        target: 'search box',
+        value: 'laptop',
+        raw: 'Enter "laptop" in the search box.',
+      },
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify that search results are displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[2].confidence).toBe('HIGH');
+    expect(mappings[2].resolved?.strategy).toBe('text');
+    expect(mappings[2].resolved?.detail).toBe('laptop');
+    expect(mappings[2].resolved?.resolvedLocator).not.toContain('status');
+    expect(mappings[2].resolved?.description).toBe(
+      'expect(page.getByText("laptop").first()).toBeVisible()',
+    );
+  });
+
+  test('2. "Verify success message is displayed" — a notification assertion — still resolves via alert/status', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [confirmationPage([{ role: 'status', unique: true }])],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify success message is displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].resolved?.strategy).toBe('role');
+    expect(mappings[1].resolved?.detail).toBe('status');
+  });
+
+  test('3. "Verify error message is displayed" — a notification assertion — resolves via alert/status, preferring alert', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        confirmationPage([
+          { role: 'alert', unique: true },
+          { role: 'status', unique: true },
+        ]),
+      ],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify error message is displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].resolved?.strategy).toBe('role');
+    expect(mappings[1].resolved?.detail).toBe('alert');
+  });
+
+  test('4. "Verify product list is displayed" prefers content (the searched term) over a status region', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [confirmationPage([{ role: 'status', unique: true }])],
+    };
+    const steps: RawStep[] = [
+      {
+        action: 'fill',
+        target: 'search box',
+        value: 'phone',
+        raw: 'Enter "phone" in the search box.',
+      },
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify product list is displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[2].confidence).toBe('HIGH');
+    expect(mappings[2].resolved?.strategy).toBe('text');
+    expect(mappings[2].resolved?.detail).toBe('phone');
+  });
+
+  test('5. "Verify confirmation is displayed" — notification wording — resolves via alert/status as before', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [confirmationPage([{ role: 'alert', unique: true }])],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify confirmation is displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].resolved?.strategy).toBe('role');
+    expect(mappings[1].resolved?.detail).toBe('alert');
+  });
+
+  test("6. the complete search -> submit -> results sequence uses the fill step's own value as the results-page evidence — the exact Amazon acceptance shape", () => {
+    const id = `gap-test-contentassert-${Date.now()}`;
+    registerApplication(id, {
+      name: 'Content Assertion App',
+      baseUrl: 'http://localhost:9999',
+      modules: [],
+      authProfiles: [],
+      defaultBrowser: 'chromium',
+      supportedBrowsers: ['chromium'],
+      dataProfiles: [],
+    });
+    try {
+      const home: PageMap = {
+        ...searchPage('Home', '/', true),
+        inputs: [{ role: 'textbox', name: 'Search Amazon', verified: VERIFIED }],
+        buttons: [{ role: 'button', name: 'Go', isSubmit: true, verified: VERIFIED }],
+        confirmationRegions: [{ role: 'status', unique: true }],
+      };
+      const map: ApplicationMap = {
+        application: id,
+        baseUrl: 'http://localhost:9999',
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        errors: [],
+        pages: [home],
+      };
+      const steps: RawStep[] = [
+        {
+          action: 'fill',
+          target: 'search box',
+          value: 'laptop',
+          raw: 'Enter "laptop" in the search box.',
+        },
+        { action: 'click', target: 'submit', raw: 'Submit the search.' },
+        { action: 'verify', raw: 'Verify that search results are displayed.' },
+      ];
+      const mappings = mapRequirementToUI(id, map, steps);
+      expect(mappings[0].confidence).toBe('HIGH'); // search input
+      expect(mappings[1].confidence).toBe('HIGH'); // submit control
+      expect(mappings[2].confidence).toBe('HIGH'); // results assertion
+      expect(mappings[2].resolved?.strategy).toBe('text');
+      expect(mappings[2].resolved?.detail).toBe('laptop');
+      expect(mappings[2].resolved?.resolvedLocator).not.toContain('status');
+      // Never asked a technical locator question at any point in the sequence.
+      expect(mappings.every((m) => m.ambiguous === undefined)).toBe(true);
+    } finally {
+      cleanUpApp(id);
+    }
+  });
+
+  test('content assertion with no preceding fill value and nothing else to go on is honestly reported unmapped, never guessed as a status/alert region', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [confirmationPage([{ role: 'status', unique: true }])],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify that search results are displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[1].confidence).toBe('LOW');
+    expect(mappings[1].resolved).toBeUndefined();
+    expect(mappings[1].unmapped?.reason).toContain('result/content');
   });
 });

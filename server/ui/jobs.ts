@@ -24,6 +24,7 @@ export interface QuestionCandidate {
   pageUrl?: string;
   relationship?: string;
   matchConfidence?: 'High' | 'Medium' | 'Low';
+  elementType?: string;
 }
 
 export type JobEvent =

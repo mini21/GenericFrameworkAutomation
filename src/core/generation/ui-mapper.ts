@@ -116,7 +116,43 @@ function mapLogin(application: string, step: RawStep, map: ApplicationMap): Step
 
 const API_STATUS_MARKER = /^\{\{api:(\d{3})\}\}$/;
 
-function mapVerify(step: RawStep, currentPage: PageMap | undefined): StepMapping {
+/**
+ * The most recent preceding fill step's literal value, up to (not
+ * including) `beforeIndex` — the "what did the user just type" context a
+ * content-type verify uses (see CONTENT_WORDING below). Skips synthetic
+ * `{{date:*}}` markers (see code-generator.ts's valueExpression) — a
+ * computed date is never something a results page would echo back as
+ * visible text, so it's never useful evidence here.
+ */
+function mostRecentFillValue(steps: RawStep[], beforeIndex: number): string | undefined {
+  for (let j = beforeIndex - 1; j >= 0; j--) {
+    const s = steps[j];
+    if (s.action === 'fill' && s.value && !/^\{\{.*\}\}$/.test(s.value)) {
+      return s.value;
+    }
+  }
+  return undefined;
+}
+
+// A bare verify is NOT one undifferentiated "something was announced"
+// check — a NOTIFICATION assertion ("success message", "error", "warning",
+// "confirmation") and a CONTENT assertion ("search results", "product
+// list", "matching items") ask fundamentally different questions. An ARIA
+// live region genuinely answers the first ("did the app announce
+// something?") but NOT the second ("is the actual result content on
+// screen?") — a status/alert region can exist and stay empty while a full
+// results page renders via ordinary navigation, no live-region involved at
+// all (a very common real pattern: results appear via a full page load,
+// not a dynamic in-place update). Generic English vocabulary only — the
+// same regex matches "search results"/"product list"/"matching items" for
+// ANY application, never a fixed per-app word list.
+const CONTENT_WORDING = /\b(results?|items?|products?|matches?|cards?|listings?|\blist\b)\b/i;
+
+function mapVerify(
+  step: RawStep,
+  currentPage: PageMap | undefined,
+  precedingFillValue: string | undefined,
+): StepMapping {
   // An EXPLICIT network/API assertion, from requirement-parser.ts's
   // API_STATUS_PATTERN — only ever produced when the requirement itself
   // names an HTTP status code, never inferred. A distinct `kind` (not
@@ -157,6 +193,69 @@ function mapVerify(step: RawStep, currentPage: PageMap | undefined): StepMapping
         reason:
           'No page context to look for a confirmation/status element on — this verify step was ' +
           'reached before any page was successfully opened.',
+      },
+      diagnostics: [],
+    };
+  }
+
+  // CONTENT assertion ("search results"/"product list"/"matching items"
+  // are displayed) — a live region is never automatically the right
+  // implementation here (see CONTENT_WORDING's comment above). The one
+  // generic, app-agnostic signal available without a second, dynamic
+  // discovery pass against a page that was never crawled (the results
+  // page only exists AFTER the preceding submit runs — discovery, which
+  // only follows static links, never saw it) is the value the PRECEDING
+  // fill step actually typed: whatever a real search/filter feature does
+  // with that term, showing it back somewhere on the resulting page (a
+  // "results for X" heading, a matching product title, ...) is close to
+  // universal — this is exactly the "text containing the searched term"
+  // evidence a human reviewing the page would look for too. `.first()`
+  // because a real results page often repeats the term (once in a
+  // heading, again in several result titles) — asserting "at least one
+  // exists" is the correct, non-guessing claim, not "exactly one".
+  // Never falls back to guessing an alert/status region instead — if
+  // there's no preceding fill value to check for, this honestly reports
+  // unmapped rather than picking a mechanism that doesn't answer the
+  // actual question asked.
+  if (CONTENT_WORDING.test(step.raw)) {
+    if (precedingFillValue) {
+      return {
+        step,
+        confidence: 'HIGH',
+        resolved: {
+          kind: 'verify',
+          strategy: 'text',
+          confidence: 'HIGH',
+          resolvedLocator: `getByText(${JSON.stringify(precedingFillValue)}).first()`,
+          description: `expect(page.getByText(${JSON.stringify(precedingFillValue)}).first()).toBeVisible()`,
+          detail: precedingFillValue,
+        },
+        diagnostics: [
+          {
+            label: `text containing "${precedingFillValue}"`,
+            value: precedingFillValue,
+            score: 70,
+            reasons: [
+              `the step asks about result/content, not a notification — the preceding step's own ` +
+                `search term ("${precedingFillValue}") appearing anywhere on "${currentPage.pageName}" ` +
+                'is the generic evidence that real result content rendered, not just that something ' +
+                'was announced',
+            ],
+            selected: true,
+            matchConfidence: 'High',
+          },
+        ],
+      };
+    }
+    return {
+      step,
+      confidence: 'LOW',
+      unmapped: {
+        reason:
+          'This assertion asks about result/content ("results"/"items"/"list"/...), which an ARIA ' +
+          "alert/status region does not reliably represent — and there is no preceding fill step's " +
+          'own value to check the page for instead. Rephrase with the exact expected text (e.g. ' +
+          'Verify "3 results found" is shown), or add a preceding fill step this can use as context.',
       },
       diagnostics: [],
     };
@@ -353,7 +452,9 @@ function matchConfidenceFor(score: number): 'High' | 'Medium' | 'Low' {
 function toCandidates<T>(
   ranked: ScoredCandidate<T>[],
   labelOf: (item: T) => string,
-  contextOf?: (item: T) => { pageName: string; pageUrl: string; samePage?: boolean } | undefined,
+  contextOf?: (
+    item: T,
+  ) => { pageName: string; pageUrl: string; samePage?: boolean; elementType?: string } | undefined,
 ): MappingCandidate[] {
   return ranked.slice(0, MAX_DISPLAYED_CANDIDATES).map((c) => {
     const ctx = contextOf?.(c.item);
@@ -366,6 +467,7 @@ function toCandidates<T>(
       matchConfidence: matchConfidenceFor(c.score),
       pageName: ctx?.pageName,
       pageUrl: ctx?.pageUrl,
+      elementType: ctx?.elementType,
       relationship:
         ctx?.samePage === undefined
           ? undefined
@@ -374,6 +476,15 @@ function toCandidates<T>(
             : "A different page than the previous step's resolved element",
     };
   });
+}
+
+/** Plain-English element kind for an ARIA role — never technical jargon in a UI-facing string. */
+function humanElementType(role: string): string {
+  if (role === 'textbox' || role === 'searchbox' || role === 'spinbutton') return 'input';
+  if (role === 'checkbox' || role === 'radio') return role;
+  if (role === 'link') return 'link';
+  if (role === 'button') return 'button';
+  return role;
 }
 
 interface NavigateOutcome {
@@ -482,6 +593,22 @@ interface ElementCandidate {
   page: PageMap;
 }
 
+// STAGE 1 — action-capability filtering, done before ANY scoring: a fill
+// step can only ever be matched against genuinely fillable controls
+// (inputs — role textbox/searchbox/spinbutton, see page-crawler.ts's
+// FILL_ROLES), a click/submit step only against clickable ones (buttons/
+// links). A page's own buttons/links are never even constructed into
+// candidates for a fill target, so a same-named button can't win a fill
+// resolution by score — it's structurally never in the running.
+function elementPool(step: RawStep, pages: PageMap[]): ElementCandidate[] {
+  return pages.flatMap((page) =>
+    (step.action === 'fill' ? page.inputs : [...page.buttons, ...page.links]).map((element) => ({
+      element,
+      page,
+    })),
+  );
+}
+
 /** Matches the size of the other contextual bonus already in this file (findNavigationEvidence's `30 +`). */
 const SAME_PAGE_CONTEXT_BONUS = 30;
 
@@ -573,6 +700,7 @@ function finalizeElement(
       pageName: c.page.pageName,
       pageUrl: c.page.url,
       samePage: contextPage ? c.page === contextPage : undefined,
+      elementType: humanElementType(c.element.role),
     }),
   );
 
@@ -680,7 +808,7 @@ export function mapRequirementToUI(
       continue;
     }
     if (step.action === 'verify') {
-      mappings.push(mapVerify(step, currentPage));
+      mappings.push(mapVerify(step, currentPage, mostRecentFillValue(steps, i)));
       continue;
     }
 
@@ -692,26 +820,34 @@ export function mapRequirementToUI(
       continue;
     }
 
-    // fill / click — the pool is scoped to `currentPage` once one is known
-    // (set by a navigate step, OR — see below — carried forward from
-    // whichever page the PRECEDING fill/click step's own element actually
-    // came from, the same "next action happens on the page you're already
-    // on" context scoreElements's same-page bonus reflects) and otherwise
-    // spans every discovered page, each candidate tagged with its own page
-    // so scoring/propagation both know where it came from.
-    const pagesToSearch = currentPage ? [currentPage] : map.pages;
-    const pool: ElementCandidate[] = pagesToSearch.flatMap((page) =>
-      (step.action === 'fill' ? page.inputs : [...page.buttons, ...page.links]).map((element) => ({
-        element,
-        page,
-      })),
-    );
+    // fill / click — page/context filtering happens BEFORE semantic name
+    // scoring ever gets a chance to matter, not as an additive bonus after
+    // the fact: the pool is scoped to `currentPage` once one is known (set
+    // by a navigate step, or carried forward from whichever page the
+    // PRECEDING fill/click step's own element actually came from), or —
+    // for the very first fill/click step, with no real preceding-step page
+    // yet — to the application's own configured start page (`startPage`).
+    // As long as that primary page offers ANY evidence at all, it wins
+    // outright: an exact-string match on some unrelated page (a help/404/
+    // settings page's own irrelevant "Search" control, discovered purely
+    // because the crawler happened to follow a footer link there) must
+    // never outscore the actual page this workflow runs on, which is
+    // exactly the reported defect (5 candidates from 5 mostly-irrelevant
+    // pages for a step that only ever executes on ONE specific page). Only
+    // when that primary page has genuinely NOTHING matching does the
+    // search widen to every discovered page — and only for the first step;
+    // a REAL currentPage's own scope is never relaxed (see the existing
+    // "scopes fill/click lookups to the most recently navigated page"
+    // contract, unchanged).
+    const primaryPage = currentPage ?? startPage;
+    let pool = elementPool(step, primaryPage ? [primaryPage] : map.pages);
+    let scored = scoreElements(step, pool, currentPage, startPage);
+    if (scored.length === 0 && !currentPage && startPage) {
+      pool = elementPool(step, map.pages);
+      scored = scoreElements(step, pool, currentPage, startPage);
+    }
 
-    const outcome = finalizeElement(
-      step,
-      scoreElements(step, pool, currentPage, startPage),
-      currentPage,
-    );
+    const outcome = finalizeElement(step, scored, currentPage);
     mappings.push(outcome.mapping);
     if (outcome.chosenPage) currentPage = outcome.chosenPage;
   }

@@ -371,6 +371,9 @@ function renderProgress() {
 // (any other kind of ambiguity) still renders exactly as before.
 function renderCandidateCard(c, index) {
   const contextLines = [
+    c.elementType
+      ? `<div class="candidate-ctx"><strong>Element:</strong> ${esc(c.elementType)}</div>`
+      : '',
     c.pageName ? `<div class="candidate-ctx"><strong>Page:</strong> ${esc(c.pageName)}</div>` : '',
     c.pageUrl ? `<div class="candidate-ctx"><strong>URL:</strong> ${esc(c.pageUrl)}</div>` : '',
     c.relationship
@@ -508,14 +511,29 @@ function renderStepDiagnostic(m, i) {
   const locatorLine = `Strategy: ${esc(m.resolved.strategy || m.resolved.kind)} · Locator: <code>${esc(m.resolved.resolvedLocator || m.resolved.description)}</code>`;
   const others = (m.diagnostics || []).filter((d) => !d.selected);
   const winner = (m.diagnostics || []).find((d) => d.selected);
-  const autoResolvedNote =
-    others.length > 0
-      ? `
-      <div class="auto-resolved-note">
-        <div>✓ Automatically resolved — ${others.length} other candidate${others.length === 1 ? '' : 's'} considered and ruled out, no question needed.</div>
-        ${winner?.reasons?.length ? `<ul>${winner.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
-      </div>`
+  // Every HIGH-confidence resolution — not just ones that beat out other
+  // candidates — shows what it resolved to, generically, for any step
+  // kind: a single-candidate happy path (no competing candidates even
+  // considered, since page/context filtering already narrowed the pool
+  // before scoring) is just as much "figure this out yourself, don't
+  // interrupt the workflow" as beating out visible alternatives.
+  const summaryLines = [
+    winner?.elementType ? `<strong>Element:</strong> ${esc(winner.elementType)}` : '',
+    winner?.pageName ? `<strong>Page:</strong> ${esc(winner.pageName)}` : '',
+    `<strong>Confidence:</strong> ${esc(winner?.matchConfidence || 'High')}`,
+  ]
+    .filter(Boolean)
+    .join('<br/>');
+  const whyLines =
+    others.length > 0 && winner?.reasons?.length
+      ? `<div style="margin-top:6px">${others.length} other candidate${others.length === 1 ? '' : 's'} considered and ruled out:<ul>${winner.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul></div>`
       : '';
+  const autoResolvedNote = `
+      <div class="auto-resolved-note">
+        <div>✓ Automatically resolved</div>
+        <div style="margin-top:4px">${summaryLines}</div>
+        ${whyLines}
+      </div>`;
   return `<div style="margin-bottom:10px">${header}${locatorLine}${autoResolvedNote}</div>`;
 }
 

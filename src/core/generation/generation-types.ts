@@ -54,6 +54,8 @@ export interface MappingCandidate {
   relationship?: string;
   /** Qualitative read of `score`, for display without exposing the raw number's meaning. */
   matchConfidence?: 'High' | 'Medium' | 'Low';
+  /** Plain-English element kind (e.g. "input", "button", "link") — present only for element (fill/click) candidates, so a Manual QA (or anyone reviewing an ambiguity card) can tell what's actually being offered without needing to know ARIA role vocabulary. */
+  elementType?: string;
 }
 
 export interface StepMapping {

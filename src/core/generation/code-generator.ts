@@ -175,14 +175,34 @@ function stepLines(
       return [`await ui.click(${JSON.stringify(resolved.detail ?? '')});`];
     case 'verify': {
       // A UI business requirement's oracle is always the UI's own
-      // observable result — a quoted expected text asserts by text; a bare
-      // verify resolved against a discovered ARIA live region (see
-      // ui-mapper.ts's mapVerify) asserts by role. Neither ever depends on
-      // the submit's network response — see needsSubmitResponseCapture and
-      // the 'verify-api' case below for the one case that legitimately does.
-      return resolved.strategy === 'role'
-        ? [`await expect(page.getByRole(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`]
-        : [`await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')})).toBeVisible();`];
+      // observable result: a quoted expected text asserts by text; a bare
+      // NOTIFICATION-type verify resolved against a discovered ARIA live
+      // region (see ui-mapper.ts's mapVerify) asserts by role; a bare
+      // CONTENT-type verify ("results"/"items"/"list" — a live region does
+      // NOT reliably represent this) asserts that the preceding fill
+      // step's own value appears somewhere on the page, via `strategy:
+      // 'text'` with `.first()` (a real results page often repeats the
+      // term). Neither ever depends on the submit's network response —
+      // see needsSubmitResponseCapture and the 'verify-api' case below for
+      // the one case that legitimately does. The step's own plain-English
+      // wording is passed as the assertion's failure message so a failure
+      // reads as "Verify that search results are displayed" first, with
+      // the raw locator/timeout detail underneath — not the other way
+      // around.
+      const message = JSON.stringify(step.step.raw);
+      if (resolved.strategy === 'role') {
+        return [
+          `await expect(page.getByRole(${JSON.stringify(resolved.detail ?? '')}), ${message}).toBeVisible();`,
+        ];
+      }
+      if (resolved.strategy === 'text') {
+        return [
+          `await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')}).first(), ${message}).toBeVisible();`,
+        ];
+      }
+      return [
+        `await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')}), ${message}).toBeVisible();`,
+      ];
     }
     case 'verify-api': {
       // Only reachable when the requirement explicitly asked for a network

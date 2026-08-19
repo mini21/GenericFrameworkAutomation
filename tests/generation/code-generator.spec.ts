@@ -183,7 +183,9 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
       ],
     };
     const { code } = generateSpecFile(roleVerifySpec);
-    expect(code).toContain('await expect(page.getByRole("alert")).toBeVisible();');
+    expect(code).toContain(
+      'await expect(page.getByRole("alert"), "Verify confirmation is displayed").toBeVisible();',
+    );
     expect(code).not.toContain('getByText');
   });
 
@@ -217,7 +219,9 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
     expect(code).not.toContain('submitResponse');
     expect(code).not.toContain('waitForResponse');
     expect(code).toContain('await ui.click("Submit Application");');
-    expect(code).toContain('await expect(page.getByRole("alert")).toBeVisible();');
+    expect(code).toContain(
+      'await expect(page.getByRole("alert"), "Verify confirmation is displayed").toBeVisible();',
+    );
   });
 
   test('an EXPLICIT "verify-api" step (requirement asked for a network status) does capture the submit response and assert its status', () => {
