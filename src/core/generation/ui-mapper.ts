@@ -163,20 +163,56 @@ function mapVerify(step: RawStep, currentPage: PageMap | undefined): StepMapping
   }
 
   const regions = currentPage.confirmationRegions;
+
+  // alert/status/log are NOT three competing business choices — they're
+  // the SAME generic W3C mechanism ("a live region announcing a result")
+  // expressed via three roles of different specificity (see
+  // page-crawler.ts's collectConfirmationRegions, which buckets all three
+  // together as exactly this one concept). Asking a Manual QA to pick
+  // between them is asking them to make a technical accessibility-role
+  // decision that has nothing to do with the business requirement — so
+  // whenever more than one is uniquely identifiable, the resolver picks
+  // among them itself using generic ARIA authoring-practice semantics, not
+  // app knowledge, and — since the two roles genuinely serve DIFFERENT
+  // typical purposes — using the step's OWN wording (never any app's
+  // vocabulary) to pick the more fitting one:
+  //   - `status` (implicit aria-live="polite") is what W3C's own ARIA
+  //     Authoring Practices names as the canonical role for advisory,
+  //     successful-outcome announcements — its own textbook example is a
+  //     search results count. The right default for an ordinary "Verify
+  //     ... is displayed/shown" business assertion.
+  //   - `alert` (implicit aria-live="assertive") is reserved for
+  //     important, time-sensitive information — its own textbook example
+  //     is a form validation error — so it's preferred specifically when
+  //     the step's own text names an error/failure outcome.
+  //   - `log` is a running history rather than a single one-shot result,
+  //     so it's never preferred, only a last resort.
+  // This is fixed, generic English vocabulary (never "if amazon"/"if
+  // hrms"), so it applies identically to any application.
+  const ERROR_WORDING = /\b(error|fail(?:s|ed|ure)?|invalid|reject(?:s|ed)?|warn(?:s|ing)?)\b/i;
+  const expectsError = ERROR_WORDING.test(step.raw);
+  const ROLE_PRIORITY: Record<string, number> = expectsError
+    ? { alert: 3, status: 2, log: 1 }
+    : { status: 3, alert: 2, log: 1 };
+
   const diagnostics: MappingCandidate[] = regions.map((r) => ({
     label: `${r.role} region`,
     value: r.role,
-    score: r.unique ? 100 : 40,
+    score: r.unique ? 60 + ROLE_PRIORITY[r.role] * 10 : 40,
     reasons: [
       r.unique
         ? `a unique, discovered "${r.role}"-role live region on "${currentPage.pageName}" — the generic ARIA signal an app uses to announce a result`
         : `a "${r.role}"-role live region exists on "${currentPage.pageName}" but is not uniquely identifiable`,
     ],
     selected: false,
+    matchConfidence: r.unique ? 'High' : 'Low',
   }));
 
-  const resolveRole = (role: string): StepMapping => {
-    diagnostics.forEach((d) => (d.selected = d.value === role));
+  const resolveRole = (role: string, extraReason?: string): StepMapping => {
+    diagnostics.forEach((d) => {
+      d.selected = d.value === role;
+      if (d.selected && extraReason) d.reasons.push(extraReason);
+    });
     return {
       step,
       confidence: 'HIGH',
@@ -194,17 +230,35 @@ function mapVerify(step: RawStep, currentPage: PageMap | undefined): StepMapping
 
   // A human's disambiguation choice re-parses back in as step.target —
   // same mechanism generation-orchestrator.ts already uses for every other
-  // step kind's MEDIUM-confidence retry.
+  // step kind's MEDIUM-confidence retry. Still honored, even though it's
+  // no longer reachable via a fresh ambiguity question below — a stored/
+  // reused answer from before this policy existed must keep working.
   if (step.target && regions.some((r) => r.role === step.target && r.unique)) {
     return resolveRole(step.target);
   }
 
+  // ANY unique confirmation region is a safe, generic signal — auto-select
+  // the highest-priority one. Never asks merely because more than one
+  // exists (see comment above); only a page with NO uniquely-identifiable
+  // region at all has nothing safe to select from.
   const uniqueRegions = regions.filter((r) => r.unique);
-  if (uniqueRegions.length === 1) {
-    return resolveRole(uniqueRegions[0].role);
-  }
-  if (regions.length > 1) {
-    return { step, confidence: 'MEDIUM', ambiguous: { candidates: diagnostics }, diagnostics };
+  if (uniqueRegions.length > 0) {
+    const best = [...uniqueRegions].sort(
+      (a, b) => ROLE_PRIORITY[b.role] - ROLE_PRIORITY[a.role],
+    )[0];
+    const whyBest = expectsError
+      ? `the step's own wording names an error/failure outcome, and "${best.role}" is the role ARIA authoring practice reserves for important, time-sensitive announcements like validation errors`
+      : `"${best.role}" is the role ARIA authoring practice canonically uses for advisory result announcements (e.g. a search results count), the closer generic match for an ordinary "is displayed/shown" assertion`;
+    const reason =
+      uniqueRegions.length > 1
+        ? `preferred over ${uniqueRegions
+            .filter((r) => r.role !== best.role)
+            .map((r) => `"${r.role}"`)
+            .join(
+              ' and ',
+            )} — alert/status/log are equally valid generic result-announcement signals; ${whyBest}`
+        : undefined;
+    return resolveRole(best.role, reason);
   }
 
   const [only] = regions;

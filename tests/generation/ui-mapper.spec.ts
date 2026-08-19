@@ -188,7 +188,7 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     expect(mappings.every((m) => m.resolved?.kind !== 'verify')).toBe(true);
   });
 
-  test('AMBIGUOUS VERIFICATION: multiple discovered confirmation regions are asked about, never guessed', () => {
+  test('EQUIVALENT LIVE REGIONS: two uniquely-identifiable confirmation regions (alert + status) auto-resolve, never asked about — they are the same generic announcement mechanism, not a business choice', () => {
     const ambiguousMap: ApplicationMap = {
       application: 'fixture-app',
       baseUrl: 'http://localhost:9999',
@@ -223,12 +223,107 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
       { action: 'verify', raw: 'Verify confirmation is displayed' },
     ];
     const mappings = mapRequirementToUI('hrms', ambiguousMap, steps);
-    expect(mappings[1].confidence).toBe('MEDIUM');
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].ambiguous).toBeUndefined();
+    // Ordinary (non-error) wording prefers "status" — the role ARIA
+    // authoring practice itself canonically uses for advisory/result
+    // announcements (its own textbook example is a search results count);
+    // "alert" is reserved for error/failure wording — see the OTHER test
+    // right below this one.
+    expect(mappings[1].resolved).toEqual({
+      kind: 'verify',
+      strategy: 'role',
+      confidence: 'HIGH',
+      resolvedLocator: "getByRole('status')",
+      description: "expect(page.getByRole('status')).toBeVisible()",
+      detail: 'status',
+    });
+    // Both candidates still recorded (Technical Details), with the winner
+    // marked and a reason explaining WHY it won over the other.
+    expect(mappings[1].diagnostics.map((d) => d.value).sort()).toEqual(['alert', 'status']);
+    const selected = mappings[1].diagnostics.find((d) => d.selected);
+    expect(selected?.value).toBe('status');
+    expect(selected?.reasons.some((r) => r.includes('preferred over'))).toBe(true);
+  });
+
+  test('ERROR WORDING PREFERS ALERT: a step whose own text names a failure/error outcome prefers the "alert" role over "status" when both are unique', () => {
+    const map: ApplicationMap = {
+      application: 'fixture-app',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        {
+          path: '/checkout.html',
+          url: 'http://localhost:9999/checkout.html',
+          title: 'Checkout',
+          pageName: 'Checkout',
+          headings: [],
+          buttons: [],
+          links: [],
+          inputs: [],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          confirmationRegions: [
+            { role: 'alert', unique: true },
+            { role: 'status', unique: true },
+          ],
+          ariaSnapshot: '',
+        },
+      ],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Checkout', raw: 'Open Checkout' },
+      { action: 'verify', raw: 'Verify error message is displayed' },
+    ];
+    const mappings = mapRequirementToUI('hrms', map, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].resolved?.detail).toBe('alert');
+  });
+
+  test('NO USABLE CANDIDATE: confirmation regions exist but none is uniquely identifiable — reported as unresolvable, never guessed or asked', () => {
+    const map: ApplicationMap = {
+      application: 'fixture-app',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        {
+          path: '/checkout.html',
+          url: 'http://localhost:9999/checkout.html',
+          title: 'Checkout',
+          pageName: 'Checkout',
+          headings: [],
+          buttons: [],
+          links: [],
+          inputs: [],
+          selects: [],
+          checkboxes: [],
+          tables: 0,
+          forms: 0,
+          navigation: 0,
+          testIds: [],
+          confirmationRegions: [
+            { role: 'alert', unique: false },
+            { role: 'status', unique: false },
+          ],
+          ariaSnapshot: '',
+        },
+      ],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Checkout', raw: 'Open Checkout' },
+      { action: 'verify', raw: 'Verify confirmation is displayed' },
+    ];
+    const mappings = mapRequirementToUI('hrms', map, steps);
+    expect(mappings[1].confidence).toBe('LOW');
     expect(mappings[1].resolved).toBeUndefined();
-    expect(mappings[1].ambiguous?.candidates.map((c) => c.value).sort()).toEqual([
-      'alert',
-      'status',
-    ]);
+    expect(mappings[1].ambiguous).toBeUndefined();
+    expect(mappings[1].unmapped?.reason).toContain('not uniquely identifiable');
   });
 
   test('a human disambiguation choice for an ambiguous verify re-resolves to that exact region at HIGH confidence', () => {

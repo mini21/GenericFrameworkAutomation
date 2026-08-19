@@ -322,3 +322,158 @@ test.describe(`Generation — contextual candidate ranking, reported defect ${TA
     expect(mapping.ambiguous?.candidates.every((c) => c.relationship === undefined)).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Confidence-driven, self-resolving candidate policy — a Manual QA must
+// never be shown a technical locator choice (getByRole('alert') vs
+// getByRole('status')) when the candidates are equally-valid generic
+// mechanisms for the same business outcome. Labeled A-F to match the
+// exact regression matrix requested; several reuse fixtures/mechanisms
+// already exercised above under their own names — kept here too as a
+// single, explicit, directly-traceable checklist.
+// ---------------------------------------------------------------------------
+function confirmationPage(
+  regions: { role: 'alert' | 'status' | 'log'; unique: boolean }[],
+): PageMap {
+  return {
+    path: '/result',
+    url: 'http://localhost:9999/result',
+    title: 'Result',
+    pageName: 'Result',
+    headings: [],
+    buttons: [],
+    links: [],
+    inputs: [],
+    selects: [],
+    checkboxes: [],
+    tables: 0,
+    forms: 0,
+    navigation: 0,
+    testIds: [],
+    confirmationRegions: regions,
+    ariaSnapshot: '',
+  };
+}
+
+test.describe(`Generation — confidence-driven candidate resolution ${TAGS.SMOKE}`, () => {
+  test('A. two equivalent ARIA live regions (alert + status) auto-resolve — never a technical locator question', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        confirmationPage([
+          { role: 'alert', unique: true },
+          { role: 'status', unique: true },
+        ]),
+      ],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify that search results are displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].ambiguous).toBeUndefined();
+    expect(mappings[1].resolved).toBeDefined();
+  });
+
+  test('B. multiple genuinely different, identically-named controls with no distinguishing context — a real business choice — still asks', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        searchPage('Employee Form', '/employee-form', false),
+        searchPage('Manager Form', '/manager-form', false),
+      ],
+    };
+    // No preceding step establishes which of the two forms is in play —
+    // "Search" here stands in for a same-named control on two genuinely
+    // unrelated pages, exactly like an "Employee form"/"Manager form"
+    // pair each with their own identically-labeled Submit control.
+    const steps: RawStep[] = [{ action: 'click', target: 'Search', raw: 'Submit the form' }];
+    const [mapping] = mapRequirementToUI('genericapp', map, steps);
+    expect(mapping.confidence).toBe('MEDIUM');
+    expect(mapping.ambiguous?.candidates.length).toBe(2);
+  });
+
+  test('C. the same control text on different pages resolves via the page a preceding step already established', () => {
+    const steps: RawStep[] = [
+      {
+        action: 'fill',
+        target: 'Search',
+        value: 'laptop',
+        raw: 'Enter "laptop" in the search box',
+      },
+      { action: 'click', target: 'Search', raw: 'Submit the search' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', MAP, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].ambiguous).toBeUndefined();
+  });
+
+  test("D. an input followed by submit uses the input's own page/form context, not a copy on another page", () => {
+    const steps: RawStep[] = [
+      {
+        action: 'fill',
+        target: 'search box',
+        value: 'laptop',
+        raw: 'Enter "laptop" in the search box.',
+      },
+      { action: 'click', target: 'Search', raw: 'Submit the search.' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', MAP, steps);
+    expect(mappings[0].confidence).toBe('HIGH');
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(
+      mappings[1].diagnostics.some(
+        (d) => d.relationship === "Same page as the previous step's resolved element",
+      ),
+    ).toBe(true);
+  });
+
+  test('E. a success message with alert/status alternatives auto-resolves — the exact acceptance-test shape', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [
+        confirmationPage([
+          { role: 'status', unique: true },
+          { role: 'alert', unique: true },
+        ]),
+      ],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify success message is displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[1].confidence).toBe('HIGH');
+    expect(mappings[1].ambiguous).toBeUndefined();
+    expect(mappings[1].resolved?.kind).toBe('verify');
+  });
+
+  test('F. no usable candidate at all — clearly reported as unresolvable, never guessed and never asked', () => {
+    const map: ApplicationMap = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [confirmationPage([])],
+    };
+    const steps: RawStep[] = [
+      { action: 'navigate', target: 'Result', raw: 'Open Result' },
+      { action: 'verify', raw: 'Verify confirmation is displayed' },
+    ];
+    const mappings = mapRequirementToUI('genericapp', map, steps);
+    expect(mappings[1].confidence).toBe('LOW');
+    expect(mappings[1].resolved).toBeUndefined();
+    expect(mappings[1].ambiguous).toBeUndefined();
+    expect(mappings[1].unmapped?.reason).toBeTruthy();
+  });
+});

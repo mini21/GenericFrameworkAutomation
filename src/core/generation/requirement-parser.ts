@@ -45,12 +45,21 @@ const FILL_VALUE_FIRST_PATTERN =
 // empty string) — it's surfaced as something to ask about instead.
 const FILL_MISSING_VALUE_PATTERN = /^(?:fill|enter|set)\s+(?:the\s+)?(.+?)$/i;
 const SELECT_QUOTED_PATTERN = /^select\s+"([^"]+)"\s+(?:for|in|from)\s+(.+)$/i;
-// Generic "submit ... request/form/application" recognition — matches
-// "submit the request", "submit the leave request", "submit the expense
-// approval form", etc. The words between "the" and the trailing noun are
-// free-form business vocabulary (never hardcoded to any one domain); what
-// makes the sentence a submit-intent is the shape, not a specific word.
-const SUBMIT_REQUEST_PATTERN = /^submit\s+the\s+(?:\S+\s+)*?(?:request|form|application)$/i;
+// Generic "submit the <anything>" recognition — "submit the request",
+// "submit the leave request", "submit the search", "submit the expense
+// approval form", etc. Everything after "the" is free-form business
+// vocabulary describing WHAT is being submitted, never a literal element
+// name to match against — the verb "submit" already means "invoke the
+// current form's own submit action" regardless of that noun (this is why
+// resolution below goes through native isSubmit-control detection, not
+// name-matching against the trailing word). Previously restricted to a
+// fixed trailing-word list (request/form/application); a step this
+// pattern doesn't catch falls through to CLICK_PATTERN's plain name
+// matching instead, which can accidentally match an unrelated same-named
+// element (e.g. "submit the search" name-matching a page's own "Search"
+// link) rather than the form's real submit control — the shape ("submit
+// the ...") is what signals intent, not any one specific trailing word.
+const SUBMIT_REQUEST_PATTERN = /^submit\s+the\s+.+$/i;
 const CLICK_PATTERN = /^(?:click|submit|press)\s+(?:the\s+)?(.+)$/i;
 const VERIFY_PATTERN = /^(?:verify|check|confirm)\b.*?"([^"]+)"/i;
 // An EXPLICIT network/API assertion — "Verify API returns 201", "Verify

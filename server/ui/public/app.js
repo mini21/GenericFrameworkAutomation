@@ -494,6 +494,31 @@ function describeStep(mapping) {
   return raw;
 }
 
+// A resolved step whose diagnostics considered more than one candidate was
+// auto-resolved by the confidence policy (see ui-mapper.ts), not just
+// trivially the only option — surface WHY the winner won, generically, for
+// any step kind (never assumes it's a verify/live-region case). A step
+// with zero or one candidate considered just shows the plain locator info
+// as before.
+function renderStepDiagnostic(m, i) {
+  const header = `<strong>${i + 1}. ${esc(m.step.raw)}</strong><br/>`;
+  if (!m.resolved) {
+    return `<div style="margin-bottom:10px">${header}${m.unmapped ? esc(m.unmapped.reason) : ''}</div>`;
+  }
+  const locatorLine = `Strategy: ${esc(m.resolved.strategy || m.resolved.kind)} · Locator: <code>${esc(m.resolved.resolvedLocator || m.resolved.description)}</code>`;
+  const others = (m.diagnostics || []).filter((d) => !d.selected);
+  const winner = (m.diagnostics || []).find((d) => d.selected);
+  const autoResolvedNote =
+    others.length > 0
+      ? `
+      <div class="auto-resolved-note">
+        <div>✓ Automatically resolved — ${others.length} other candidate${others.length === 1 ? '' : 's'} considered and ruled out, no question needed.</div>
+        ${winner?.reasons?.length ? `<ul>${winner.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+      </div>`
+      : '';
+  return `<div style="margin-bottom:10px">${header}${locatorLine}${autoResolvedNote}</div>`;
+}
+
 function renderReview() {
   const outcome = state.outcome;
   const spec = outcome.spec;
@@ -516,15 +541,7 @@ function renderReview() {
 
       <details>
         <summary>Show confidence &amp; locator details</summary>
-        ${spec.steps
-          .map(
-            (m, i) => `
-          <div style="margin-bottom:10px">
-            <strong>${i + 1}. ${esc(m.step.raw)}</strong><br/>
-            ${m.resolved ? `Strategy: ${esc(m.resolved.strategy || m.resolved.kind)} · Locator: <code>${esc(m.resolved.resolvedLocator || m.resolved.description)}</code>` : m.unmapped ? esc(m.unmapped.reason) : ''}
-          </div>`,
-          )
-          .join('')}
+        ${spec.steps.map((m, i) => renderStepDiagnostic(m, i)).join('')}
       </details>
 
       <details>

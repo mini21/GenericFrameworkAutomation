@@ -84,12 +84,21 @@ async function collectFormFieldEvidence(page: Page): Promise<FormFieldEvidence> 
     elements
       .filter((el) => {
         const isButton = el.tagName.toLowerCase() === 'button';
-        // A plain <button> inside a form defaults to type="submit" per the
-        // HTML spec when no type attribute is given — checking the
-        // *effective* type (falling back to "submit"), not just a literal
-        // attribute match, so this works whether or not an app bothers to
-        // write type="submit" explicitly.
-        return isButton ? (el.getAttribute('type') || 'submit') === 'submit' : true;
+        // A plain <button> defaults to type="submit" per the HTML spec when
+        // no type attribute is given — checking the *effective* type
+        // (falling back to "submit"), not just a literal attribute match,
+        // so this works whether or not an app bothers to write
+        // type="submit" explicitly. That default only actually DOES
+        // anything when the control is form-associated, though — a
+        // <button> with no form ancestor (a menu toggle, "Back to top",
+        // an "Add to cart" action wired up via JS, ...) is inert as a
+        // submit control no matter its implicit type, so it must not be
+        // treated as one; `.closest('form')` is a plain DOM fact, true for
+        // any element in any form, on any application.
+        const isEffectivelySubmit = isButton
+          ? (el.getAttribute('type') || 'submit') === 'submit'
+          : true;
+        return isEffectivelySubmit && el.closest('form') !== null;
       })
       .map((el) => {
         const withValue = el as unknown as { value?: string };
