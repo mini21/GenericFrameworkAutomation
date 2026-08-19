@@ -1,0 +1,10 @@
+{
+  "requirements": {
+    "SEARCH-001": {
+      "name": "Open Your Amazon",
+      "priority": "Medium",
+      "feature": "Search",
+      "tests": ["amazon.search.generated.1"]
+    }
+  }
+}

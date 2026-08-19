@@ -1,5 +1,9 @@
 import { test, expect } from '../../src/core/fixtures/base.fixture';
-import { resolveExecution, toPlaywrightArgs } from '../../src/core/execution/execution-resolver';
+import {
+  resolveExecution,
+  toPlaywrightArgs,
+  countMatchingTests,
+} from '../../src/core/execution/execution-resolver';
 import { TAGS } from '../../src/core/constants';
 
 test.describe(`Execution — resolver ${TAGS.SMOKE}`, () => {
@@ -42,5 +46,27 @@ test.describe(`Execution — resolver ${TAGS.SMOKE}`, () => {
     });
 
     expect(resolved.tags).toEqual(['@hrms.leave.generated.11']);
+  });
+
+  test('countMatchingTests reports zero for a tag that names no generated/hand-written test at all — the "0/0" case this exists to explain', () => {
+    const resolved = resolveExecution({
+      cli: {
+        application: 'hrms',
+        environment: 'qa',
+        tags: [`@nonexistent-tag-${Date.now()}`],
+      },
+    });
+
+    const discovery = countMatchingTests(resolved);
+    expect(discovery.matchCount).toBe(0);
+  });
+
+  test("countMatchingTests reports a real count via Playwright's own discovery/grep — not a duplicate matcher — for tags that DO exist", () => {
+    const resolved = resolveExecution({
+      cli: { application: 'hrms', environment: 'qa', tags: ['@smoke'] },
+    });
+
+    const discovery = countMatchingTests(resolved);
+    expect(discovery.matchCount).toBeGreaterThan(0);
   });
 });

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { getApplication, BrowserName } from '../config/application-registry';
 import { ExecutionManifest, TestType } from './execution-manifest';
 
@@ -240,4 +241,31 @@ export function toEnv(resolved: ResolvedExecution): NodeJS.ProcessEnv {
     GAP_DATA_PROFILE: resolved.dataProfile ?? '',
     GAP_AUTH_PROFILE: resolved.authProfile ?? '',
   };
+}
+
+export interface TestDiscoveryResult {
+  matchCount: number;
+  output: string;
+}
+
+/**
+ * Asks Playwright's OWN test discovery/grep matching (--list — no
+ * duplicate/parallel matching logic here) whether the resolved execution
+ * plan matches anything at all. A run that resolves to zero tests
+ * (application/tags/module narrowed the grep down to nothing — the
+ * common cause: the generated test this tag was supposed to belong to was
+ * never actually saved, e.g. it failed validation and got cleaned up)
+ * exits non-zero from Playwright with a bare "Error: No tests found.",
+ * indistinguishable at the exit-code level from "tests ran and some
+ * failed". Callers use this to disambiguate and report which one
+ * actually happened, only after a run has already failed — never on the
+ * successful path, so it adds no overhead there.
+ */
+export function countMatchingTests(resolved: ResolvedExecution): TestDiscoveryResult {
+  const args = [...toPlaywrightArgs(resolved), '--list'];
+  const env = { ...process.env, ...toEnv(resolved) };
+  const result = spawnSync('npx', ['playwright', ...args], { encoding: 'utf-8', env });
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  const match = /Total:\s+(\d+)\s+tests?\b/.exec(output);
+  return { matchCount: match ? Number(match[1]) : 0, output };
 }

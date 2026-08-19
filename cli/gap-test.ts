@@ -4,6 +4,7 @@ import {
   resolveExecution,
   toPlaywrightArgs,
   toEnv,
+  countMatchingTests,
   CliOverrides,
 } from '../src/core/execution/execution-resolver';
 import { loadManifest, TestType } from '../src/core/execution/execution-manifest';
@@ -66,6 +67,21 @@ function main(): void {
   }
 
   const result = spawnSync('npx', ['playwright', ...playwrightArgs], { stdio: 'inherit', env });
+
+  if (result.status !== 0) {
+    const discovery = countMatchingTests(resolved);
+    if (discovery.matchCount === 0) {
+      const tagList = resolved.tags.join(', ') || '(none)';
+      process.stdout.write(
+        `\nGAP: No generated automation exists for this requirement — nothing under ` +
+          `applications/${resolved.application}/tests matches application="${resolved.application}"` +
+          `${resolved.module ? `, module="${resolved.module}"` : ''}, tags=[${tagList}]. ` +
+          'Generate and approve it first (npm run gap:generate), or double-check the ' +
+          "--tags/--module you passed match an existing generated test's own tags.\n\n",
+      );
+    }
+  }
+
   process.exit(result.status ?? 1);
 }
 

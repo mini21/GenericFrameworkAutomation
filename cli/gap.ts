@@ -16,6 +16,7 @@ import {
 import {
   toPlaywrightArgs,
   toEnv,
+  countMatchingTests,
   ResolvedExecution,
   CliOverrides,
 } from '../src/core/execution/execution-resolver';
@@ -108,6 +109,16 @@ function runResolved(resolved: ResolvedExecution): void {
 
   if (result.status && result.status !== 0) {
     process.stdout.write(`GAP: Playwright exited with status ${result.status}.\n\n`);
+    const discovery = countMatchingTests(resolved);
+    if (discovery.matchCount === 0) {
+      const tagList = resolved.tags.join(', ') || '(none)';
+      process.stdout.write(
+        `GAP: No generated automation exists for this requirement — nothing under ` +
+          `applications/${resolved.application}/tests matches application="${resolved.application}"` +
+          `${resolved.module ? `, module="${resolved.module}"` : ''}, tags=[${tagList}]. Generate and ` +
+          'approve it first, or double-check the tags/module match an existing generated test.\n\n',
+      );
+    }
   }
 }
 
