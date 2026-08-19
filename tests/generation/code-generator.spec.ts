@@ -242,10 +242,15 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
       ],
     };
     const { code } = generateSpecFile(apiVerifySpec);
-    expect(code).toContain('const [submitResponse] = await Promise.all([');
-    expect(code).toContain(
-      "page.waitForResponse((response) => response.request().method() !== 'GET'),",
-    );
+    // Each generated step now runs inside its own liveStep()/test.step()
+    // callback (see live-step.ts) — a separate function scope — so the
+    // submit click assigns an outer `let submitResponse` rather than
+    // declaring its own `const`, which a later verify-api step's callback
+    // could not otherwise see.
+    expect(code).toContain('let submitResponse: Response;');
+    expect(code).toContain('const [response] = await Promise.all([');
+    expect(code).toContain("page.waitForResponse((r) => r.request().method() !== 'GET'),");
+    expect(code).toContain('submitResponse = response;');
     expect(code).toContain('expect(submitResponse.status()).toBe(201);');
     expect(code.indexOf('ui.click(')).toBeLessThan(code.indexOf('submitResponse.status()'));
   });
@@ -255,6 +260,30 @@ test.describe(`Generation — code generator ${TAGS.SMOKE}`, () => {
     expect(code).not.toContain('submitResponse');
     expect(code).not.toContain('waitForResponse');
     expect(code).toContain('await ui.click("Submit Application");');
+  });
+
+  test('every step — including the prepended navigation — is wrapped in its own liveStep() call, numbered from 1', () => {
+    const { code } = generateSpecFile(SPEC);
+    expect(code).toContain(
+      "import { liveStep } from '../../../../../src/core/execution/live-step';",
+    );
+    expect(code).toContain('await liveStep("Login as employee", 1, page, async () => {');
+    expect(code).toContain('await liveStep("Open Apply Leave", 2, page, async () => {');
+    expect(code).toContain('await liveStep("Select start and end dates", 3, page, async () => {');
+    expect(code).toContain(
+      'await liveStep("Fill Reason as \\"Family trip\\"", 4, page, async () => {',
+    );
+    expect(code).toContain('await liveStep("Submit the request", 5, page, async () => {');
+  });
+
+  test('a spec whose first step does not already navigate gets a liveStep-wrapped "Open the application" goto as step 1', () => {
+    const noNavSpec: TestSpecification = {
+      ...SPEC,
+      steps: SPEC.steps.slice(2), // drop login-helper/navigate — first step becomes a plain fill
+    };
+    const { code } = generateSpecFile(noNavSpec);
+    expect(code).toContain('await liveStep("Open the application", 1, page, async () => {');
+    expect(code).toContain('await liveStep("Select start and end dates", 2, page, async () => {');
   });
 
   test('the next generated index is the highest existing index + 1, not a count — surviving gaps from deleted files', () => {

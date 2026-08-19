@@ -1,0 +1,192 @@
+{
+  "application": "hrms",
+  "baseUrl": "http://localhost:4100",
+  "generatedAt": "2026-08-19T08:40:28.744Z",
+  "pages": [
+    {
+      "path": "/dashboard.html",
+      "url": "http://localhost:4100/dashboard.html",
+      "title": "Dashboard",
+      "pageName": "Dashboard",
+      "headings": ["Dashboard"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Logout",
+          "isSubmit": true,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Logout\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Apply Leave",
+          "href": "/apply-leave.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Apply Leave\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Leave History",
+          "href": "/leave-history.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Leave History\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- heading \"Dashboard\" [level=1]\n- paragraph: Welcome, Alex Employee (employee)\n- navigation:\n  - link \"Apply Leave\":\n    - /url: /apply-leave.html\n  - link \"Leave History\":\n    - /url: /leave-history.html\n- button \"Logout\""
+    },
+    {
+      "path": "/apply-leave.html",
+      "url": "http://localhost:4100/apply-leave.html",
+      "title": "Apply Leave",
+      "pageName": "Apply Leave",
+      "headings": ["Apply for Leave"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Submit Application",
+          "isSubmit": true,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Submit Application\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Back to Dashboard",
+          "href": "/dashboard.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Back to Dashboard\" })"
+          }
+        }
+      ],
+      "inputs": [
+        {
+          "role": "textbox",
+          "name": "Start Date",
+          "inputType": "date",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"textbox\", { name: \"Start Date\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "End Date",
+          "inputType": "date",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"textbox\", { name: \"End Date\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "Reason",
+          "inputType": "textarea",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"textbox\", { name: \"Reason\" })"
+          }
+        }
+      ],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 0,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "alert",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- heading \"Apply for Leave\" [level=1]\n- text: Start Date\n- textbox \"Start Date\"\n- text: End Date\n- textbox \"End Date\"\n- text: Reason\n- textbox \"Reason\"\n- button \"Submit Application\"\n- alert\n- link \"Back to Dashboard\":\n  - /url: /dashboard.html"
+    },
+    {
+      "path": "/leave-history.html",
+      "url": "http://localhost:4100/leave-history.html",
+      "title": "Leave History",
+      "pageName": "Leave History",
+      "headings": ["Leave History"],
+      "buttons": [],
+      "links": [
+        {
+          "role": "link",
+          "name": "Back to Dashboard",
+          "href": "/dashboard.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Back to Dashboard\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 1,
+      "forms": 0,
+      "navigation": 0,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- heading \"Leave History\" [level=1]\n- table:\n  - rowgroup:\n    - row \"Start End Reason Status Action\":\n      - columnheader \"Start\"\n      - columnheader \"End\"\n      - columnheader \"Reason\"\n      - columnheader \"Status\"\n      - columnheader \"Action\"\n  - rowgroup\n- link \"Back to Dashboard\":\n  - /url: /dashboard.html"
+    },
+    {
+      "path": "/approvals.html",
+      "url": "http://localhost:4100/approvals.html",
+      "title": "Manager Approvals",
+      "pageName": "Manager Approvals",
+      "headings": ["Pending Approvals"],
+      "buttons": [],
+      "links": [
+        {
+          "role": "link",
+          "name": "Back to Dashboard",
+          "href": "/dashboard.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Back to Dashboard\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 1,
+      "forms": 0,
+      "navigation": 0,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- heading \"Pending Approvals\" [level=1]\n- table:\n  - rowgroup:\n    - row \"Employee Start End Reason Actions\":\n      - columnheader \"Employee\"\n      - columnheader \"Start\"\n      - columnheader \"End\"\n      - columnheader \"Reason\"\n      - columnheader \"Actions\"\n  - rowgroup\n- link \"Back to Dashboard\":\n  - /url: /dashboard.html"
+    }
+  ],
+  "errors": []
+}

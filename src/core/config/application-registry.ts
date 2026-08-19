@@ -62,6 +62,36 @@ export function listApplications(): ApplicationRegistry {
   return loadRegistry();
 }
 
+/**
+ * Derives an application id straight from a bare URL — the one input a
+ * non-technical caller (the web UI's "Application URL" field) actually
+ * has, with no NL sentence to extract a name from the way
+ * application-name-extractor.ts does for "Discover X at Y" phrasing.
+ * Prefers an EXISTING registered application whose own baseUrl shares the
+ * same origin (so re-entering http://localhost:4100 keeps resolving to
+ * "hrms", not a freshly-derived "localhost") — falls back to slugifying
+ * the URL's own hostname (minus a leading "www.") for a never-before-seen
+ * origin, the same id a human onboarding it by hand would likely choose.
+ */
+export function applicationIdFromUrl(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  const registry = loadRegistry();
+  for (const [id, def] of Object.entries(registry)) {
+    try {
+      if (new URL(def.baseUrl).origin === url.origin) return id;
+    } catch {
+      // A malformed registered baseUrl is that entry's own problem, not this lookup's.
+    }
+  }
+  const host = url.hostname.replace(/^www\./, '');
+  const label = host.split('.')[0] || host;
+  const slug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return slug || 'app';
+}
+
 const APPLICATION_DIR_PATTERN = /applications[\\/]([^\\/]+)[\\/]/;
 
 /**

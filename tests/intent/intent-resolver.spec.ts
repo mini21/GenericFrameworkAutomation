@@ -10,9 +10,9 @@ import { resolveExecution } from '../../src/core/execution/execution-resolver';
 import { TestType } from '../../src/core/execution/execution-manifest';
 import { TAGS } from '../../src/core/constants';
 
-// These tests use the REAL application registry (config/applications.json,
-// currently just "hrms") on purpose: they exist to prove the natural-language
-// and structured-input layers hand off into the EXISTING GAP execution
+// These tests use the REAL application registry (config/applications.json)
+// on purpose: they exist to prove the natural-language and
+// structured-input layers hand off into the EXISTING GAP execution
 // engine unchanged — no second execution engine, no bypassed validation.
 test.describe(`Intent Resolver — reaches the existing GAP execution engine ${TAGS.SMOKE}`, () => {
   test('a natural-language request resolves to exactly what the equivalent CLI flags would produce', () => {
@@ -48,7 +48,14 @@ test.describe(`Intent Resolver — reaches the existing GAP execution engine ${T
   });
 
   test('a natural-language request naming a module the application does not have fails clearly rather than running every module', () => {
-    const { intent, ambiguities } = parseIntent('Run smoke tests for Payments module in QA');
+    // Names the application explicitly ("hrms") — with more than one
+    // application now registered (amazon joined hrms once the web UI's
+    // acceptance test onboarded it), an unnamed application is a genuine,
+    // correct ambiguity (see intent-parser.ts's matchApplications/
+    // appsFromModule fallback chain), not something this test should
+    // paper over. Naming it keeps this test's actual point intact: an
+    // application's own module list is still checked strictly.
+    const { intent, ambiguities } = parseIntent('Run smoke tests for Payments module in HRMS QA');
     expect(ambiguities).toEqual([]);
     const outcome = finalize(intent);
     expect(outcome.ok).toBe(false);

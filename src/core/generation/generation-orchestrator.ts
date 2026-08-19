@@ -54,7 +54,18 @@ export interface GenerationInput {
   resolveMissingValue?: (field: string, raw: string) => Promise<string | undefined>;
   /** When true, every outcome (blocked or ready-for-approval) carries the full per-step scoring trail — see presentation.ts's formatDiagnostics. */
   diagnose?: boolean;
+  /**
+   * Optional, purely observational — fired at the pipeline's own existing
+   * phase boundaries so a caller (e.g. the web UI's live progress timeline)
+   * can reflect real progress instead of a guessed/fake one. Never
+   * required, never changes what the pipeline does: the CLI simply doesn't
+   * pass it, same as `resolveAmbiguity`/`resolveMissingValue` above.
+   */
+  onPhase?: (phase: GenerationPhase, detail?: string) => void;
 }
+
+export type GenerationPhase =
+  'connecting' | 'discovering' | 'mapping' | 'understanding' | 'generating' | 'validating';
 
 export interface ValidationSummary {
   typecheck: { passed: boolean; output: string };
@@ -294,11 +305,15 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     };
   }
 
+  input.onPhase?.(input.url ? 'connecting' : 'mapping');
+  if (input.url) input.onPhase?.('discovering');
   const map = await loadOrDiscoverMap(input);
   if ('error' in map) {
     return { status: 'blocked', message: map.error };
   }
+  input.onPhase?.('mapping', `${map.pages.length} page(s) discovered`);
 
+  input.onPhase?.('understanding');
   let parsed = parseRequirement(input.requirementText);
   let requirementText = input.requirementText;
 
@@ -406,6 +421,7 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     };
   }
 
+  input.onPhase?.('generating');
   let spec: TestSpecification;
   try {
     spec = buildTestSpecification(parsed, mappings, {
@@ -420,6 +436,7 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
   writeGeneratedFile(generated.filePath, generated.code);
   formatFile(generated.filePath); // cosmetic only — a failure here isn't fatal, typecheck/lint below are the real gates
 
+  input.onPhase?.('validating');
   const typecheck = typecheckProject();
   if (!typecheck.passed) {
     deleteGeneratedFile(generated.filePath);

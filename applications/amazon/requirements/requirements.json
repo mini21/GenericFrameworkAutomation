@@ -5,6 +5,12 @@
       "priority": "Medium",
       "feature": "Search",
       "tests": ["amazon.search.generated.1"]
+    },
+    "SEARCH-002": {
+      "name": "User should be able to search for a product",
+      "priority": "Medium",
+      "feature": "Search",
+      "tests": ["amazon.search.generated.2"]
     }
   }
 }

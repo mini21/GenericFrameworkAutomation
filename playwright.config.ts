@@ -55,6 +55,9 @@ export default defineConfig({
     ['allure-playwright', { resultsDir: 'reports/allure-results' }],
     ['list'],
     ['./src/core/reporter/summary-reporter.ts'],
+    // No-op unless GAP_RUN_ID is set (only the web UI's live-execution
+    // spawn sets it) — see live-events-reporter.ts's own doc comment.
+    ['./src/core/reporter/live-events-reporter.ts'],
   ],
   // Native Playwright app-under-test lifecycle management — no custom
   // process orchestration. Idempotent locally (reuseExistingServer skips

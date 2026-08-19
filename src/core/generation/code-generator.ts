@@ -158,11 +158,18 @@ function stepLines(
         // app already provides; captured here so a later bare verify (see
         // below) can assert the operation actually succeeded, not just
         // that *a* message rendered.
+        // Assigns the outer `let submitResponse` (declared once, before
+        // any step — see generateSpecFile) rather than declaring its own
+        // — this step and a later verify-api step now each run inside
+        // their OWN test.step() callback (see liveStep in
+        // src/core/execution/live-step.ts), so a `const` declared in one
+        // callback's scope would not be visible from another.
         return [
-          `const [submitResponse] = await Promise.all([`,
-          `  page.waitForResponse((response) => response.request().method() !== 'GET'),`,
+          `const [response] = await Promise.all([`,
+          `  page.waitForResponse((r) => r.request().method() !== 'GET'),`,
           `  ui.click(${JSON.stringify(resolved.detail ?? '')}),`,
           `]);`,
+          `submitResponse = response;`,
         ];
       }
       return [`await ui.click(${JSON.stringify(resolved.detail ?? '')});`];
@@ -232,6 +239,10 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
   const executionContextImport = relativeImport(
     outputDir,
     path.resolve(process.cwd(), 'src', 'core', 'execution', 'execution-context'),
+  );
+  const liveStepImport = relativeImport(
+    outputDir,
+    path.resolve(process.cwd(), 'src', 'core', 'execution', 'live-step'),
   );
 
   const typesPath = path.resolve(
@@ -303,16 +314,44 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
     firstStepKind === 'login-helper' ||
     firstStepKind === 'login-inline' ||
     firstStepKind === 'navigate';
+  // Every generated step (the prepended "Open the application" goto and
+  // every spec.steps entry) runs inside its own liveStep()/test.step()
+  // callback — see live-step.ts — so the live-events reporter can observe
+  // per-step begin/end boundaries. 1-based, matching the reporter's own
+  // stepIndexByTest counter, which increments the same way in the same
+  // order (see live-events-reporter.ts's onStepBegin).
+  let liveStepIndex = 0;
+  const pushLiveStep = (description: string, lines: string[]): void => {
+    liveStepIndex += 1;
+    bodyLines.push(
+      `await liveStep(${JSON.stringify(description)}, ${liveStepIndex}, page, async () => {`,
+      ...lines.map((line) => `  ${line}`),
+      `});`,
+    );
+  };
+
   if (!firstStepAlreadyNavigates) {
-    bodyLines.push(`await page.goto(${JSON.stringify(app.startPath ?? '/')});`);
+    pushLiveStep('Open the application', [
+      `await page.goto(${JSON.stringify(app.startPath ?? '/')});`,
+    ]);
   }
 
   const shouldCaptureSubmitResponse = needsSubmitResponseCapture(spec.steps);
   let submitResponseCaptured = false;
+  // Declared once, OUTSIDE every liveStep callback: the submit step and a
+  // later verify-api step each run in their own callback's function scope,
+  // so a `const` declared inside one would not be visible from the other.
+  if (shouldCaptureSubmitResponse) {
+    bodyLines.push('let submitResponse: Response;', '');
+  }
   for (const step of spec.steps) {
-    bodyLines.push(
-      ...stepLines(step, app.startPath, shouldCaptureSubmitResponse, submitResponseCaptured),
+    const lines = stepLines(
+      step,
+      app.startPath,
+      shouldCaptureSubmitResponse,
+      submitResponseCaptured,
     );
+    pushLiveStep(step.step.raw, lines);
     if (
       step.resolved?.kind === 'click' &&
       step.step.target === 'submit' &&
@@ -324,9 +363,11 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
 
   const importLines = [
     `import { test, expect } from '${baseFixtureImport}';`,
+    ...(shouldCaptureSubmitResponse ? [`import type { Response } from '@playwright/test';`] : []),
     `import { TAGS } from '${constantsImport}';`,
     `import { loadDataProfile } from '${dataProfileImport}';`,
     `import { getExecutionContext } from '${executionContextImport}';`,
+    `import { liveStep } from '${liveStepImport}';`,
     ...loginHelperImports,
     ...(hasTypes && dataProfileTypeName
       ? [`import { ${dataProfileTypeName} } from '${dataTypesImport}';`]

@@ -47,3 +47,30 @@ export function saveRequirement(spec: TestSpecification, stableTestId: string): 
   fs.writeFileSync(filePath, `${JSON.stringify(file, null, 2)}\n`, 'utf-8');
   spawnSync('npx', ['prettier', '--write', filePath], { encoding: 'utf-8' }); // cosmetic only
 }
+
+export interface GeneratedTestSummary {
+  requirementId: string;
+  name: string;
+  stableTestId: string;
+}
+
+/**
+ * Existing generated tests for an application — sourced from the SAME
+ * requirements.json the coverage calculator already reads, filtered to
+ * entries whose test id matches the generated-test naming convention
+ * (code-generator.ts's `${application}.${module}.generated.${index}`) —
+ * never a hand-written test, which uses its own hand-picked id. Powers
+ * the web UI's "run an existing generated test" action (server/ui/routes.ts)
+ * — no separate index of generated tests is maintained anywhere else.
+ */
+export function listGeneratedTests(application: string): GeneratedTestSummary[] {
+  const filePath = requirementsPath(application);
+  if (!fs.existsSync(filePath)) return [];
+  const file = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as RequirementsFile;
+  const results: GeneratedTestSummary[] = [];
+  for (const [requirementId, requirement] of Object.entries(file.requirements)) {
+    const stableTestId = requirement.tests.find((t) => /\.generated\.\d+$/.test(t));
+    if (stableTestId) results.push({ requirementId, name: requirement.name, stableTestId });
+  }
+  return results;
+}

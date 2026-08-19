@@ -107,6 +107,18 @@
       "priority": "Medium",
       "feature": "Leave",
       "tests": ["hrms.leave.generated.11"]
+    },
+    "LEAVE-016": {
+      "name": "Employee should be able to apply for leave",
+      "priority": "Medium",
+      "feature": "Leave",
+      "tests": ["hrms.leave.generated.12"]
+    },
+    "LEAVE-017": {
+      "name": "Employee should be able to apply for leave",
+      "priority": "Medium",
+      "feature": "Leave",
+      "tests": ["hrms.leave.generated.13"]
     }
   }
 }
