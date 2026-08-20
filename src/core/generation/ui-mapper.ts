@@ -999,6 +999,17 @@ export interface MapRequirementOptions {
    * asks for (section 4/17) — nothing else in this file branches on it.
    */
   interactive?: boolean;
+  /**
+   * Application test-data profile (applications/<app>/data/<profile>.json),
+   * for deterministic step values GAP would otherwise have nothing safe to
+   * fill in — e.g. "Search for a product" (no literal value stated). Looked
+   * up by entity-type noun: `dataProfile['product'].searchTerm`. The SAME
+   * existing data-profile architecture every application already uses for
+   * credentials — never invented, never hardcoded for any one application
+   * in core (see generation-orchestrator.ts's resolveTestDataValue). Falls
+   * back to the discovered entity catalog (see findEntity) when absent.
+   */
+  dataProfile?: Record<string, { searchTerm?: string } | undefined>;
 }
 
 /** One entity a "Select a/an <item>" step deterministically picked — see DiscoveredEntityItem. */
@@ -1027,6 +1038,116 @@ function findEntity(
   return undefined;
 }
 
+/**
+ * A step whose real page context is only known at TEST-RUN time — after a
+ * live search/filter, or after clicking through an entity whose
+ * destination discovery never statically saw (see `pageContextKnown` in
+ * mapRequirementToUI's main loop) — has no discovery-time evidence to
+ * score against at all. Rather than fail outright, this defers entirely
+ * to the SAME safety-checked runtime resolution every other step already
+ * uses (LocatorResolver, via ui.click/ui.fill/...): resolved live, against
+ * whatever page is actually current when the generated test runs, exactly
+ * matching the "rediscover the current page, then resolve the next
+ * action" execution model. Still HIGH/AUTO_SELECTED — the INTENT here is
+ * fully deterministic (this step's target name, this step's action); it's
+ * WHICH page that name lives on that generation-time can't know yet.
+ * LocatorResolver independently enforces its own uniqueness/visibility
+ * safety at the point it actually runs, so this is never "guess and hope".
+ */
+/**
+ * `navigationIntent: true` (a degraded `navigate` step — see the main loop
+ * below) deliberately resolves via a role-SCOPED live link click, never
+ * the full multi-role LocatorResolver chain a plain deferred click uses:
+ * "navigate" specifically means "follow a link", and trying every
+ * clickable role generically (as an ordinary click would) can genuinely
+ * mismatch — e.g. a bare "cart" target matching an unrelated "Add to
+ * Cart" BUTTON (whose name also contains "cart" as a substring) before
+ * ever trying the real "Cart" nav LINK, since LocatorResolver tries
+ * button before link. Playwright's own strict-locator mode still refuses
+ * a genuinely ambiguous multi-link match — this narrows the search space,
+ * it doesn't weaken the safety guarantee.
+ */
+function deferredElementResolution(step: RawStep, navigationIntent = false): StepMapping {
+  const target = step.action === 'click' && step.target === 'submit' ? undefined : step.target;
+  if (!target) {
+    return {
+      step,
+      confidence: 'LOW',
+      unmapped: {
+        reason:
+          `"${step.raw}" has no page context to resolve a generic submit control against (no ` +
+          'discovered page evidence, and a bare "submit" marker names no element to defer to at ' +
+          'runtime either). Rephrase naming the control explicitly, e.g. Click "Submit".',
+      },
+      diagnostics: [],
+    };
+  }
+  if (navigationIntent) {
+    return {
+      step,
+      confidence: 'HIGH',
+      resolved: {
+        kind: 'deferred-navigate',
+        description: `page.getByRole('link', { name: '${target}' }).click()`,
+        detail: target,
+      },
+      diagnostics: [
+        {
+          label: target,
+          value: target,
+          score: 100,
+          reasons: [
+            'no static discovery evidence exists for this page anywhere in the crawled map ' +
+              '(e.g. a link reachable only via a header icon a bounded-depth crawl never followed) ' +
+              '— resolved live as a role-scoped link click (navigation intent, never any clickable ' +
+              'element merely sharing a substring) against whatever page is current at that point',
+          ],
+          selected: true,
+          matchConfidence: 'High',
+        },
+      ],
+      decision: 'AUTO_SELECTED',
+    };
+  }
+  const kind =
+    step.action === 'fill'
+      ? 'fill'
+      : step.action === 'select'
+        ? 'select'
+        : step.action === 'check'
+          ? 'check'
+          : 'click';
+  const description =
+    step.action === 'fill'
+      ? `ui.fill('${target}', ${describeValue(step.value)})`
+      : step.action === 'select'
+        ? `ui.selectOption('${target}', ${describeValue(step.value)})`
+        : step.action === 'check'
+          ? `ui.check('${target}')`
+          : `ui.click('${target}')`;
+  return {
+    step,
+    confidence: 'HIGH',
+    resolved: { kind, description, detail: target },
+    diagnostics: [
+      {
+        label: target,
+        value: target,
+        score: 100,
+        reasons: [
+          'no static discovery evidence is available for the page this step actually runs on ' +
+            '(only known live, e.g. after a search/navigation) — resolved live against whatever ' +
+            'page is current at that point in the test, through the same LocatorResolver safety ' +
+            'chain (unique match required, ambiguous/low-confidence refused) every other step uses',
+        ],
+        selected: true,
+        matchConfidence: 'High',
+      },
+    ],
+    decision: 'AUTO_SELECTED',
+  };
+}
+
 export function mapRequirementToUI(
   application: string,
   map: ApplicationMap,
@@ -1035,8 +1156,19 @@ export function mapRequirementToUI(
 ): StepMapping[] {
   const mappings: StepMapping[] = [];
   const interactive = options.interactive ?? false;
+  const dataProfile = options.dataProfile;
   let currentPage: PageMap | undefined;
   let selectedEntity: SelectedEntity | undefined;
+  // False whenever the CURRENT page is only known at test-run time (after
+  // an entity was opened without a statically-discoverable destination, or
+  // after a navigate step degraded to a live click — see below): static
+  // discovery evidence about "what page am I scoping this step's element
+  // pool to" would be actively WRONG in that state (it'd score against
+  // whatever page currentPage/startPage last pointed to, not where the
+  // test actually is), so fill/click/select/check defer entirely to
+  // runtime resolution instead (see deferredElementResolution) rather than
+  // use stale/irrelevant static evidence.
+  let pageContextKnown = true;
   // The page a generated test's own prepended page.goto(app.startPath)
   // actually lands on (see code-generator.ts's generateSpecFile) — used
   // ONLY as a scoring bonus for a fill/click step with no real preceding-
@@ -1064,8 +1196,27 @@ export function mapRequirementToUI(
     if (step.action === 'navigate') {
       const target = step.target ?? '';
       const outcome = finalizeNavigate(step, target, scorePages(target, map.pages), interactive);
+      // Zero static evidence anywhere in the discovered map (not "weak" or
+      // "tied" — genuinely nothing) — e.g. "Open the cart" when the cart
+      // was never reached by the initial crawl (behind a header icon a
+      // bounded-depth crawl never followed, common on real, large sites).
+      // Real evidence still routes through finalizeNavigate's own
+      // margin-based auto-select/safe-failure policy unchanged; this is
+      // ONLY the "there was nothing to score at all" case, where degrading
+      // to a live, generic click (resolved at runtime via the SAME
+      // LocatorResolver chain a real "Click Cart" step would use) is
+      // strictly better than failing outright over an incomplete crawl.
+      if (outcome.mapping.unmapped && outcome.mapping.diagnostics.length === 0) {
+        mappings.push(deferredElementResolution({ ...step, action: 'click', target }, true));
+        pageContextKnown = false;
+        currentPage = undefined;
+        continue;
+      }
       mappings.push(outcome.mapping);
-      if (outcome.chosenPage) currentPage = outcome.chosenPage;
+      if (outcome.chosenPage) {
+        currentPage = outcome.chosenPage;
+        pageContextKnown = true;
+      }
       continue;
     }
 
@@ -1075,42 +1226,42 @@ export function mapRequirementToUI(
     // it for later steps ("Open the ... details page", "Add the ... to the
     // ...", "Verify the selected ... is present ..."). See findEntity above.
     if (step.action === 'select-entity') {
-      const typeHint = step.target ?? '';
+      // ALWAYS resolves — the ACTION is fully deterministic ("run generic
+      // entity discovery live and pick the first result"; see
+      // entity-discovery.ts's selectEntity). A static catalog entry (the
+      // opt-in data-entity convention, when an application's markup
+      // provides one — see findEntity) is used ONLY as an optional
+      // prediction, for reporting and for a currentPage scoring hint later
+      // steps can use — never a requirement: a real results/listing page
+      // (e.g. Amazon's search results) frequently only exists live, after
+      // the preceding search actually runs, which static discovery
+      // genuinely cannot see ahead of time. Nothing found statically is
+      // NOT a failure here; it just means later steps defer to runtime too
+      // (see pageContextKnown).
+      const typeHint = step.target ?? 'item';
       const found = findEntity(typeHint, currentPage ?? startPage, map.pages);
-      if (!found) {
-        mappings.push({
-          step,
-          confidence: 'LOW',
-          unmapped: {
-            reason:
-              `No discovered "${typeHint || 'item'}"-like entity found anywhere in the application ` +
-              '(see the data-entity markup convention) — cannot safely select one without guessing.',
-          },
-          diagnostics: [],
-        });
-        continue;
-      }
-      const { entity, page } = found;
-      selectedEntity = { entityType: entity.entityType, name: entity.name };
-      const cssSelector = `[data-entity="${entity.entityType}"]`;
+      selectedEntity = { entityType: typeHint, name: found?.entity.name ?? typeHint };
+      const description = found
+        ? `Select ${typeHint}: deterministic first discovered item on "${found.page.pageName}" ` +
+          `(predicted "${found.entity.name}"; the actual selection is captured live at runtime)`
+        : `Select ${typeHint}: no static catalog discovered ahead of time — selected live at ` +
+          'runtime via generic entity-candidate discovery (an opt-in data-entity marker, or a ' +
+          'repeated-link structural fallback), deterministic first match, never guessed';
       mappings.push({
         step,
         confidence: 'HIGH',
-        resolved: {
-          kind: 'select-entity',
-          description:
-            `Select ${entity.entityType}: deterministic first discovered item on "${page.pageName}" ` +
-            `(predicted "${entity.name}"; the actual selection is captured live at runtime via ${cssSelector})`,
-          detail: cssSelector,
-        },
+        resolved: { kind: 'select-entity', description, detail: typeHint },
         diagnostics: [
           {
-            label: entity.name,
-            value: entity.name,
+            label: found?.entity.name ?? `(resolved live at runtime)`,
+            value: found?.entity.name ?? typeHint,
             score: 100,
             reasons: [
-              `first discovered "${entity.entityType}"-type item on "${page.pageName}", document order ` +
-                '— a deterministic, non-random representative, never a guessed business value',
+              found
+                ? `first discovered "${typeHint}"-type item on "${found.page.pageName}", document ` +
+                  'order — a deterministic, non-random representative, never a guessed business value'
+                : `no static "${typeHint}"-type catalog was discovered ahead of time — resolved via ` +
+                  'the same deterministic, non-random, document-order rule live at runtime instead',
             ],
             selected: true,
             matchConfidence: 'High',
@@ -1118,9 +1269,15 @@ export function mapRequirementToUI(
         ],
         decision: 'AUTO_SELECTED',
       });
-      if (entity.href) {
-        const destination = map.pages.find((p) => p.path === entity.href);
-        if (destination) currentPage = destination;
+      const destination = found?.entity.href
+        ? map.pages.find((p) => p.path === found.entity.href)
+        : undefined;
+      if (destination) {
+        currentPage = destination;
+        pageContextKnown = true;
+      } else {
+        currentPage = undefined;
+        pageContextKnown = false;
       }
       continue;
     }
@@ -1170,26 +1327,41 @@ export function mapRequirementToUI(
     }
 
     // A `fill` step parsed with no literal value ("Search for a product",
-    // as opposed to Search for "Mouse") — derive one deterministically from
-    // the discovered entity catalog instead of asking a human or inventing
-    // a business value (same `findEntity` mechanism select-entity uses).
+    // as opposed to Search for "Mouse") — derive one deterministically
+    // instead of asking a human or inventing a business value. Two
+    // sources, tried in order: (1) the application's own test-data profile
+    // (applications/<app>/data/<profile>.json's own <noun> key, e.g.
+    // { "product": { "searchTerm": "wireless mouse" } } — the SAME
+    // existing data-profile architecture every app already uses for
+    // credentials, never hardcoded per-application in core), which is the
+    // ONLY reliable source for a genuinely free-form search value on a
+    // real site with no discoverable "catalog" at all (e.g. Amazon); (2)
+    // the discovered entity catalog (`findEntity`), for an application
+    // that happens to expose one statically.
     if (step.action === 'fill' && step.value === undefined && step.deriveValueFrom) {
-      const found = findEntity(step.deriveValueFrom, currentPage ?? startPage, map.pages);
-      if (!found) {
-        mappings.push({
-          step,
-          confidence: 'LOW',
-          unmapped: {
-            reason:
-              `"${step.raw}" names no explicit value, and no discovered "${step.deriveValueFrom}"-like ` +
-              'item exists anywhere in the application to derive one from. Rephrase with an explicit ' +
-              'quoted value, e.g. Search for "Mouse".',
-          },
-          diagnostics: [],
-        });
-        continue;
+      const fromProfile = dataProfile?.[step.deriveValueFrom]?.searchTerm;
+      if (fromProfile) {
+        step.value = fromProfile; // mutated in place — same "re-parse with the real value" convention used throughout this file
+      } else {
+        const found = findEntity(step.deriveValueFrom, currentPage ?? startPage, map.pages);
+        if (!found) {
+          mappings.push({
+            step,
+            confidence: 'LOW',
+            unmapped: {
+              reason:
+                `"${step.raw}" names no explicit value, and neither this application's test-data ` +
+                `profile (a "${step.deriveValueFrom}.searchTerm" entry) nor its discovered entity ` +
+                'catalog has one to derive from. Rephrase with an explicit quoted value (e.g. Search ' +
+                `for "Mouse"), or add "${step.deriveValueFrom}": { "searchTerm": "..." } to ` +
+                `applications/${application}/data/<profile>.json.`,
+            },
+            diagnostics: [],
+          });
+          continue;
+        }
+        step.value = found.entity.name;
       }
-      step.value = found.entity.name; // mutated in place — same "re-parse with the real value" convention used throughout this file
     }
 
     // fill / click — page/context filtering happens BEFORE semantic name
@@ -1211,6 +1383,20 @@ export function mapRequirementToUI(
     // a REAL currentPage's own scope is never relaxed (see the existing
     // "scopes fill/click lookups to the most recently navigated page"
     // contract, unchanged).
+    // Static discovery evidence is only trustworthy when it's actually
+    // about the page the test will be on when this step runs — see
+    // pageContextKnown's own comment above. Deferring here (rather than
+    // scoring against startPage/a stale currentPage) is what makes "Add
+    // the product to the cart" work correctly on a real product-details
+    // page GAP never crawled ahead of time (Amazon), instead of either
+    // scoring zero evidence (safe failure over a step that would actually
+    // have worked) or, worse, scoring against the WRONG page's unrelated
+    // elements.
+    if (!pageContextKnown) {
+      mappings.push(deferredElementResolution(step));
+      continue;
+    }
+
     const primaryPage = currentPage ?? startPage;
     let pool = elementPool(step, primaryPage ? [primaryPage] : map.pages);
     let scored = scoreElements(step, pool, currentPage, startPage);

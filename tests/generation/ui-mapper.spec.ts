@@ -111,13 +111,23 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     });
   });
 
-  test('reports an unmapped navigate step with a clear reason when no page matches', () => {
+  test('a navigate step with zero static page evidence degrades to a live, role-scoped link click rather than failing outright', () => {
+    // "Reports" matches no discovered page by name/nav-link evidence at
+    // all — rather than block the whole workflow over a bounded-depth
+    // crawl that never happened to reach a real "Reports" page, this
+    // resolves live instead (see ui-mapper.ts's deferredElementResolution
+    // / code-generator.ts's 'deferred-navigate' case) — auto-selected,
+    // still safe (Playwright's own strict-locator mode still refuses a
+    // genuinely ambiguous multi-link match at runtime).
     const steps: RawStep[] = [{ action: 'navigate', target: 'Reports', raw: 'Open Reports' }];
     const [mapping] = mapRequirementToUI('hrms', MAP, steps);
-    expect(mapping.resolved).toBeUndefined();
-    expect(mapping.unmapped?.reason).toContain(
-      'No discovered page provides any evidence for "Reports"',
-    );
+    expect(mapping.confidence).toBe('HIGH');
+    expect(mapping.decision).toBe('AUTO_SELECTED');
+    expect(mapping.resolved).toEqual({
+      kind: 'deferred-navigate',
+      description: "page.getByRole('link', { name: 'Reports' }).click()",
+      detail: 'Reports',
+    });
   });
 
   test('scopes fill/click lookups to the most recently navigated page', () => {
@@ -453,12 +463,20 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     };
     const steps: RawStep[] = [{ action: 'navigate', target: 'Leave', raw: 'Open Leave' }];
     const [mapping] = mapRequirementToUI('hrms', loginOnlyMap, steps);
-    expect(mapping.resolved).toBeUndefined();
-    expect(mapping.diagnostics).toHaveLength(0); // zero evidence, not "best-guess" Login
-    expect(mapping.unmapped?.reason).toContain(
-      'No discovered page provides any evidence for "Leave"',
-    );
-    expect(mapping.unmapped?.reason).not.toContain('Login');
+    // Zero PAGE-level evidence for "Leave" (never "best-guess" Login) — the
+    // core assertion this test exists for. With no static page to land on
+    // at all, this now degrades to a live, role-scoped link click (see
+    // "reports an unmapped navigate step..." above) instead of failing
+    // outright — but it must never resolve to Login itself: the diagnostic
+    // and target are both about the step's own "Leave" wording, never
+    // Login-page-specific evidence (its heading/submit button).
+    expect(mapping.diagnostics).toHaveLength(1);
+    expect(mapping.diagnostics[0].reasons.join(' ')).not.toContain('Login');
+    expect(mapping.resolved).toEqual({
+      kind: 'deferred-navigate',
+      description: "page.getByRole('link', { name: 'Leave' }).click()",
+      detail: 'Leave',
+    });
   });
 
   test('FAIL CASE: a login page with a heading containing the target AND a verified submit button is NOT selected for "Open Leave"', () => {
@@ -500,9 +518,17 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
       { action: 'click', target: 'submit', raw: 'Submit the leave request' },
     ];
     const [mapping] = mapRequirementToUI('hrms', loginOnlyMap, steps);
-    expect(mapping.resolved).toBeUndefined();
-    expect(mapping.diagnostics).toHaveLength(0);
-    expect(mapping.unmapped?.reason).not.toContain('Login');
+    // Zero PAGE-level evidence, and never Login's own submit button
+    // "corroborating" a false match (the exact reported regression) — the
+    // core assertion this test exists for. Degrades to a live link click
+    // on the step's own "Leave" wording, same as the sibling test above.
+    expect(mapping.diagnostics).toHaveLength(1);
+    expect(mapping.diagnostics[0].reasons.join(' ')).not.toContain('Login');
+    expect(mapping.resolved).toEqual({
+      kind: 'deferred-navigate',
+      description: "page.getByRole('link', { name: 'Leave' }).click()",
+      detail: 'Leave',
+    });
   });
 
   test('PASS CASE: a navigation link named "Leave" with href "/leave.html" resolves "Open Leave" at HIGH confidence', () => {

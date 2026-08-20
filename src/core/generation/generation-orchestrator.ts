@@ -33,6 +33,19 @@ export interface GenerationInput {
   /** Where discovery starts crawling from when `url` is set — default '/', override for apps with no route at '/' (e.g. an authenticated app whose root 404s). */
   startPath?: string;
   requirementText: string;
+  /**
+   * The business-intent sentence, when a caller keeps it separate from the
+   * executable workflow (e.g. the web UI's "Requirement" field, distinct
+   * from its "Test Steps" field) — descriptive only, saved verbatim as
+   * TestSpecification.requirementText for reporting, but NEVER parsed for
+   * executable steps. Fixes the bug where a Requirement sentence like
+   * "Verify that a user can search for a product..." got parsed as a real
+   * (bogus, contextless) verify step ahead of the actual workflow, because
+   * it happened to start with "Verify". Omit when there's only ever been
+   * one combined text (every CLI caller) — requirementText itself is both
+   * parsed AND used for display, exactly as before.
+   */
+  businessRequirement?: string;
   module?: string;
   maxPages?: number;
   headless?: boolean;
@@ -139,6 +152,32 @@ function resolveDiscoveryCredential(application: string): DiscoveryCredential | 
     const credential = profile[authProfileKey];
     if (!credential?.username || !credential?.password) return undefined;
     return { username: credential.username, password: credential.password };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The SAME application data-profile file resolveDiscoveryCredential reads
+ * above, generically typed for GAP's own test-data lookups (e.g. a
+ * "Search for a product" step with no literal value — see ui-mapper.ts's
+ * deriveValueFrom resolution) rather than credentials. An application
+ * simply adds whatever entity-type keys it needs (e.g.
+ * { "product": { "searchTerm": "wireless mouse" } }) to its own
+ * applications/<app>/data/<profile>.json — never hardcoded per-application
+ * in core. Returns undefined on any missing piece, same as above.
+ */
+function resolveTestDataProfile(
+  application: string,
+): Record<string, { searchTerm?: string } | undefined> | undefined {
+  try {
+    const app = getApplication(application);
+    const dataProfileId = app.dataProfiles[0];
+    if (!dataProfileId) return undefined;
+    return loadDataProfile<Record<string, { searchTerm?: string } | undefined>>(
+      application,
+      dataProfileId,
+    );
   } catch {
     return undefined;
   }
@@ -392,8 +431,10 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     };
   }
 
+  const dataProfile = resolveTestDataProfile(input.application);
   let mappings = mapRequirementToUI(input.application, map, parsed.steps, {
     interactive: input.interactiveResolution,
+    dataProfile,
   });
 
   // MEDIUM confidence: real evidence exists for more than one candidate.
@@ -419,6 +460,7 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     if (!choseSomething) break;
     mappings = mapRequirementToUI(input.application, map, parsed.steps, {
       interactive: input.interactiveResolution,
+      dataProfile,
     });
   }
 
@@ -455,6 +497,7 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     spec = buildTestSpecification(parsed, mappings, {
       application: input.application,
       module: input.module,
+      requirementOverride: input.businessRequirement,
     });
   } catch (error) {
     return { status: 'blocked', message: error instanceof Error ? error.message : String(error) };

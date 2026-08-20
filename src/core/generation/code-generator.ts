@@ -185,26 +185,42 @@ function stepLines(
     case 'check':
       return [`await ui.check(${targetExpression(resolved.detail ?? '', resolved.formIndex)});`];
     case 'select-entity':
-      // Informational + the actual runtime capture: `resolved.detail` is the
-      // CSS selector generation-analysis picked (e.g. `[data-entity="product"]`)
-      // — `.first()` is a deliberate, DOCUMENT-ORDER pick among genuinely
-      // distinct data-entity items (never "ambiguity suppression": there IS
-      // no single correct one to guess at here, GAP's contract is "pick a
-      // deterministic representative", not "find THE one the requirement
-      // meant" — see ui-mapper.ts's 'select-entity' resolution). The name is
-      // captured live, not baked in at generation time, since a real
-      // results/listing page's content is often only known live (see
-      // mapVerify's `{{entity:selected}}` marker below, which reads this
-      // same variable).
+      // Informational + the actual runtime capture: `resolved.detail` is
+      // the entity-type noun (e.g. "product") — the REAL discovery (opt-in
+      // data-entity markup, else a generic structural fallback — see
+      // entity-discovery.ts's selectEntity) happens LIVE, against whatever
+      // page is actually current at this point in the test, never a
+      // discovery-time snapshot: a real results/listing page frequently
+      // only exists after a live search/filter action. `.first()`-via-
+      // selectEntity is a deliberate, DOCUMENT-ORDER pick among genuinely
+      // distinct entity candidates (never "ambiguity suppression" — see
+      // ui-mapper.ts's 'select-entity' resolution for why this is a
+      // different, safe operation). The name is captured live, not baked
+      // in at generation time (see mapVerify's `{{entity:selected}}`
+      // marker below, which reads this same variable).
       return [
         `// ${resolved.description}`,
-        `selectedEntityLocator = page.locator(${JSON.stringify(resolved.detail ?? '')}).first();`,
+        `selectedEntityLocator = await selectEntity(page, ${JSON.stringify(resolved.detail ?? '')});`,
         `selectedEntityName = (await selectedEntityLocator.textContent())?.trim() ?? '';`,
       ];
     case 'open-entity':
       return [
         `const urlBeforeOpen = page.url();`,
         `await selectedEntityLocator.click();`,
+        `await page.waitForURL((url) => url.toString() !== urlBeforeOpen, { timeout: 10000 }).catch(() => {});`,
+      ];
+    case 'deferred-navigate':
+      // A `navigate` step with zero static page evidence, resolved live —
+      // deliberately role-scoped to "link" (see ui-mapper.ts's
+      // deferredElementResolution) rather than routed through
+      // ui.click()'s full multi-role chain: navigation intent specifically
+      // means "follow a link", not "press whatever same-substring-named
+      // button also exists" (e.g. "Add to Cart" vs a bare "cart" target).
+      // Playwright's own strict-locator mode still refuses a genuinely
+      // ambiguous multi-link match.
+      return [
+        `const urlBeforeOpen = page.url();`,
+        `await page.getByRole('link', { name: ${JSON.stringify(resolved.detail ?? '')} }).click();`,
         `await page.waitForURL((url) => url.toString() !== urlBeforeOpen, { timeout: 10000 }).catch(() => {});`,
       ];
     case 'click':
@@ -330,6 +346,10 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
   const liveStepImport = relativeImport(
     outputDir,
     path.resolve(process.cwd(), 'src', 'core', 'execution', 'live-step'),
+  );
+  const entityDiscoveryImport = relativeImport(
+    outputDir,
+    path.resolve(process.cwd(), 'src', 'core', 'discovery', 'entity-discovery'),
   );
 
   const typesPath = path.resolve(
@@ -468,6 +488,7 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
     `import { loadDataProfile } from '${dataProfileImport}';`,
     `import { getExecutionContext } from '${executionContextImport}';`,
     `import { liveStep } from '${liveStepImport}';`,
+    ...(needsEntityTracking ? [`import { selectEntity } from '${entityDiscoveryImport}';`] : []),
     ...loginHelperImports,
     ...(hasTypes && dataProfileTypeName
       ? [`import { ${dataProfileTypeName} } from '${dataTypesImport}';`]

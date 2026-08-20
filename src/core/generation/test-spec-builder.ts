@@ -50,6 +50,8 @@ export interface BuildSpecOptions {
   application: string;
   module?: string;
   type?: TestType;
+  /** The business-intent sentence to save/display instead of the parsed (steps-only) text — see GenerationInput.businessRequirement. */
+  requirementOverride?: string;
 }
 
 /**
@@ -88,7 +90,7 @@ export function buildTestSpecification(
 
   return {
     requirementId,
-    requirementText: parsed.requirementText,
+    requirementText: options.requirementOverride ?? parsed.requirementText,
     testName: parsed.testNameHint,
     application: options.application,
     module,

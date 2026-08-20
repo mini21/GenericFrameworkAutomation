@@ -8,6 +8,7 @@ import {
 } from '../src/core/generation/generation-orchestrator';
 import { formatFinalSummary, formatDiagnostics } from '../src/core/generation/presentation';
 import { runCoverageReport } from '../src/core/generation/generated-test-validator';
+import { requirementInputFor } from '../src/core/generation/requirement-input';
 import { createLineReader } from './lib/line-reader';
 import {
   readRequirementInteractively,
@@ -26,6 +27,8 @@ async function main(): Promise<void> {
       'start-path': { type: 'string' },
       requirement: { type: 'string' },
       'requirement-file': { type: 'string' },
+      steps: { type: 'string' },
+      'steps-file': { type: 'string' },
       module: { type: 'string' },
       'max-pages': { type: 'string' },
       headless: { type: 'string' },
@@ -39,26 +42,42 @@ async function main(): Promise<void> {
   if (!values.application) {
     throw new Error(
       'Usage: npm run gap:generate -- --application=<id> [--environment=qa] [--url=<baseUrl>] ' +
-        '[--storage-state=<path>] [--requirement="..."] [--requirement-file=<path>] [--module=<id>] ' +
-        '[--approve] [--diagnose] [--interactive]',
+        '[--storage-state=<path>] [--requirement="..."] [--requirement-file=<path>] ' +
+        '[--steps="..."] [--steps-file=<path>] [--module=<id>] [--approve] [--diagnose] [--interactive]',
     );
   }
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const readLine = createLineReader(rl);
 
-  let requirementText = values.requirement ?? '';
-  if (!requirementText && values['requirement-file']) {
-    requirementText = fs.readFileSync(values['requirement-file'], 'utf-8');
+  let requirementInput = values.requirement ?? '';
+  if (!requirementInput && values['requirement-file']) {
+    requirementInput = fs.readFileSync(values['requirement-file'], 'utf-8');
   }
-  if (!requirementText) {
-    requirementText = await readRequirementInteractively(readLine);
+  if (!requirementInput) {
+    requirementInput = await readRequirementInteractively(readLine);
   }
-  if (!requirementText.trim()) {
+  if (!requirementInput.trim()) {
     throw new Error(
       'No requirement/scenario provided. GAP cannot generate automation without one.',
     );
   }
+  let stepsInput = values.steps ?? '';
+  if (!stepsInput && values['steps-file']) {
+    stepsInput = fs.readFileSync(values['steps-file'], 'utf-8');
+  }
+  // --requirement is business intent; --steps/--steps-file (when given) is
+  // the executable workflow — kept semantically separate, never
+  // concatenated and parsed together (see requirement-input.ts's own doc
+  // comment for why: a Requirement sentence like "Verify that a user can
+  // search for a product..." would otherwise get parsed as a real, bogus,
+  // contextless verify step ahead of the actual workflow). With no
+  // --steps given, --requirement is parsed directly — unchanged behavior
+  // for the natural-language-only flow every existing caller already uses.
+  const { requirementText, businessRequirement } = requirementInputFor(
+    requirementInput,
+    stepsInput,
+  );
 
   process.stdout.write(`\nGAP: generating automation for "${values.application}"...\n`);
 
@@ -70,6 +89,7 @@ async function main(): Promise<void> {
     storageStatePath: values['storage-state'],
     startPath: values['start-path'],
     requirementText,
+    businessRequirement,
     module: values.module,
     maxPages: values['max-pages'] ? Number(values['max-pages']) : undefined,
     headless: values.headless !== 'false',

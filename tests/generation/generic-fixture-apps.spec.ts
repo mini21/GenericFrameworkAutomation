@@ -306,7 +306,7 @@ test.describe(`Generation — automatic locator selection + entity tracking ${TA
     expect(mapping.confidence).toBe('HIGH');
     expect(mapping.decision).toBe('AUTO_SELECTED');
     expect(mapping.resolved?.kind).toBe('select-entity');
-    expect(mapping.resolved?.detail).toBe('[data-entity="product"]');
+    expect(mapping.resolved?.detail).toBe('product'); // entity-type noun — the REAL discovery (data-entity or a structural fallback) happens live at runtime, see entity-discovery.ts
     // Deterministic — the FIRST discovered "product" item, document order —
     // never random, never a guessed business value.
     expect(mapping.diagnostics[0].label).toBe('Wireless Mouse');
@@ -415,7 +415,10 @@ test.describe(`Generation — automatic locator selection + entity tracking ${TA
     // never a generation-time string literal standing in for a live
     // selection.
     expect(code).toContain('let selectedEntityLocator: Locator;');
-    expect(code).toContain(`selectedEntityLocator = page.locator("[data-entity=\\"product\\"]")`);
+    expect(code).toContain('selectedEntityLocator = await selectEntity(page, "product");');
+    expect(code).toContain(
+      "import { selectEntity } from '../../../../../src/core/discovery/entity-discovery';",
+    );
     // The final cart-presence assertion reads the RUNTIME-captured variable
     // — never a generation-time string literal standing in for a live
     // selection (only the earlier, independent search-term fill legitimately
@@ -448,5 +451,36 @@ test.describe(`Generation — automatic locator selection + entity tracking ${TA
 
     await page.goto(storefrontBaseUrl + '/cart.html');
     await expect(page.getByText(name!)).toBeVisible();
+  });
+
+  test('RESILIENCE PROOF: the DEFERRED runtime resolution (used when a step\'s page is only known live — root cause 1/3) genuinely works against a live page GAP\'s static discovery never saw — exactly the "Add the product to the cart" / "Open the cart" mechanism', async ({
+    page,
+    ui,
+  }) => {
+    // Simulates arriving at a product-details page and needing to act on
+    // it with ZERO prior static knowledge — the exact situation
+    // ui-mapper.ts's deferredElementResolution hands off to at codegen
+    // time (see incremental-planning.spec.ts for the analysis-time proof
+    // that this hand-off actually happens). This test proves the
+    // RUNTIME half: the SAME ui.click(...) mechanism every generated
+    // test already uses resolves correctly with no page-map assistance
+    // at all, live, via LocatorResolver.
+    await page.goto(storefrontBaseUrl + '/product/p1.html'); // arrived here with no preceding discovery of this page
+    await ui.click('Add to Cart');
+    await expect(page.getByRole('status')).toHaveText('Added to cart');
+
+    // "Open the cart" degraded from navigate -> a role-SCOPED live link
+    // click (see ui-mapper.ts's deferredElementResolution/code-generator.ts's
+    // 'deferred-navigate' case) — deliberately narrower than a plain
+    // deferred ui.click('cart') would be: this same page ALSO has an
+    // "Add to Cart" BUTTON whose name contains "cart" as a substring,
+    // which a full multi-role chain would find first (button before
+    // link) and wrongly click again. Scoping to role=link is what makes
+    // this resolve the real Cart nav link instead.
+    const urlBeforeOpen = page.url();
+    await page.getByRole('link', { name: 'cart' }).click();
+    await page.waitForURL((url) => url.toString() !== urlBeforeOpen);
+    await expect(page).toHaveURL(/\/cart\.html$/);
+    await expect(page.getByText('Wireless Mouse')).toBeVisible();
   });
 });

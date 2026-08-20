@@ -9,6 +9,7 @@ import {
   GenerationOutcome,
 } from '../../src/core/generation/generation-orchestrator';
 import { runCoverageReport } from '../../src/core/generation/generated-test-validator';
+import { requirementInputFor } from '../../src/core/generation/requirement-input';
 import {
   resolveExecution,
   toPlaywrightArgs,
@@ -71,14 +72,6 @@ function deriveModule(requirementText: string): string {
   return words[0] || 'general';
 }
 
-function buildRequirementText(requirement: string, steps: string): string {
-  const stepLines = steps
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return [requirement.trim(), ...stepLines].filter(Boolean).join('\n');
-}
-
 interface GenerateRequestBody {
   url: string;
   requirement: string;
@@ -111,13 +104,17 @@ router.post('/api/generate', (req, res) => {
 async function runGenerationJob(job: Job, input: GenerateRequestBody): Promise<void> {
   const application = applicationIdFromUrl(input.url);
   job.application = application;
-  const requirementText = buildRequirementText(input.requirement, input.steps ?? '');
+  const { requirementText, businessRequirement } = requirementInputFor(
+    input.requirement,
+    input.steps ?? '',
+  );
 
   const outcome: GenerationOutcome = await runGenerationPipeline({
     application,
     environment: input.environment,
     url: input.url,
     requirementText,
+    businessRequirement,
     module: undefined,
     diagnose: true,
     onPhase: (phase, detail) => job.emit({ type: 'phase', phase, detail }),
@@ -157,6 +154,7 @@ async function runGenerationJob(job: Job, input: GenerateRequestBody): Promise<v
       application,
       environment: input.environment,
       requirementText,
+      businessRequirement,
       module: deriveModule(input.requirement),
       diagnose: true,
       onPhase: (phase, detail) => job.emit({ type: 'phase', phase, detail }),

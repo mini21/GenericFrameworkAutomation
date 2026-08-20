@@ -55,7 +55,17 @@ export interface ResolvedStep {
     /** Informational only — records which entity was deterministically selected; codegen emits a comment, no runtime action of its own. */
     | 'select-entity'
     /** Clicks the entity a preceding `select-entity` step captured, via that same runtime Locator — see code-generator.ts. */
-    | 'open-entity';
+    | 'open-entity'
+    /**
+     * A `navigate` step with zero static page evidence, degraded to a
+     * live, role-SCOPED link click (see ui-mapper.ts's deferredElementResolution)
+     * — deliberately narrower than a plain deferred `click` (which tries
+     * every clickable role via LocatorResolver): navigation intent
+     * specifically means "follow a link", never "press whatever same-
+     * substring-named button happens to also exist" (e.g. "Add to Cart"
+     * containing "cart" as a substring of a generic "Open the cart" target).
+     */
+    | 'deferred-navigate';
   description: string;
   /** Present when this step resolved to a specific discovered element re-verified via LocatorResolver. */
   strategy?: LocatorStrategy;

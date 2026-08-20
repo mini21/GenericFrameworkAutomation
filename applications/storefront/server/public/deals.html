@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Deals</title>
+  </head>
+  <body>
+    <!-- Deliberately NOT linked from the main nav, and deliberately carries
+         NO data-entity markup at all — this page exists purely to prove
+         GAP's GENERIC structural entity-discovery fallback (see
+         src/core/discovery/entity-discovery.ts) against a real, live page
+         with no opt-in convention, no discovery-time knowledge, nothing
+         but ordinary repeated classed links — the shape a real third-party
+         site (e.g. Amazon) actually has. -->
+    <h1>Today's Deals</h1>
+    <div class="deal-item"><a class="deal-link" href="/product/p1.html">Wireless Mouse</a></div>
+    <div class="deal-item">
+      <a class="deal-link" href="/product/p2.html">Mechanical Keyboard</a>
+    </div>
+    <div class="deal-item"><a class="deal-link" href="/product/p3.html">USB-C Hub</a></div>
+    <div class="deal-item"><a class="deal-link" href="/product/p4.html">Laptop Stand</a></div>
+  </body>
+</html>
