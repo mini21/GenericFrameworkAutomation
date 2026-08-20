@@ -49,15 +49,7 @@ const OPEN_ENTITY_DETAILS_PATTERN =
 // scored resolution as any other click, no new step kind needed. A
 // differently-labeled control needs an explicit click step instead (e.g.
 // "Click Add to Bag") — never guessed beyond this one generic convention.
-// The entity noun (match[1], e.g. "product") is matched but never actually
-// used downstream (only the container, match[2], drives the "Add to
-// <Container>" click target) — but it must still accept multi-word
-// phrases like "the selected product", not just a single word, or the
-// WHOLE sentence fails to match and gets silently dropped. Non-greedy so
-// the split lands at the first " to " (matches natural-language intent:
-// "Add <entity> to <container>", not a later "to" inside the container
-// phrase itself).
-const ADD_TO_CONTAINER_PATTERN = /^add\s+(?:the\s+)?(.+?)\s+to\s+(?:the\s+|my\s+)?(.+)$/i;
+const ADD_TO_CONTAINER_PATTERN = /^add\s+(?:the\s+)?(\w+)\s+to\s+(?:the\s+|my\s+)?(.+)$/i;
 const NAVIGATE_PATTERN = /^(?:open|go to|navigate to)\s+(?:the\s+)?(.+)$/i;
 const DATES_PATTERN = /^select\s+start\s+and\s+end\s+dates?$/i;
 // Same safe, already-established {{date:start}}/{{date:end}} marker as

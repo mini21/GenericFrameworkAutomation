@@ -408,11 +408,7 @@ test.describe(`Generation — automatic locator selection + entity tracking ${TA
     // page.locator standing in for a fill/click GAP already knows how to
     // express generically.
     expect(code).toContain('await ui.fill("Search"');
-    // "Add to Cart" waits for its own network response before proceeding
-    // (see code-generator.ts's ADD_TO_CONTAINER race-condition fix) —
-    // still ui.click under the hood, just synchronized.
-    expect(code).toContain('ui.click("Add to Cart")');
-    expect(code).toContain("page.waitForResponse((r) => r.request().method() !== 'GET')");
+    expect(code).toContain('await ui.click("Add to Cart")');
     // Entity tracking's runtime capture — the one deliberate, necessary
     // exception (no ui.selectEntity() abstraction exists — see the
     // implementation report's limitations) — fully self-contained/declared,

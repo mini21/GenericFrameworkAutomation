@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ApplicationMap, DiscoveredElement, PageMap } from '../discovery/discovery-types';
-import { MappingCandidate, RawStep, StepMapping, TestDataProfile } from './generation-types';
+import { MappingCandidate, RawStep, StepMapping } from './generation-types';
 import { hasApplication, getApplication } from '../config/application-registry';
 import {
   classifyConfidence,
@@ -1009,7 +1009,7 @@ export interface MapRequirementOptions {
    * in core (see generation-orchestrator.ts's resolveTestDataValue). Falls
    * back to the discovered entity catalog (see findEntity) when absent.
    */
-  dataProfile?: TestDataProfile;
+  dataProfile?: Record<string, { searchTerm?: string } | undefined>;
 }
 
 /** One entity a "Select a/an <item>" step deterministically picked — see DiscoveredEntityItem. */
@@ -1350,7 +1350,6 @@ export function mapRequirementToUI(
             confidence: 'LOW',
             unmapped: {
               reason:
-                `No test data value is configured for ${step.deriveValueFrom}.searchTerm. ` +
                 `"${step.raw}" names no explicit value, and neither this application's test-data ` +
                 `profile (a "${step.deriveValueFrom}.searchTerm" entry) nor its discovered entity ` +
                 'catalog has one to derive from. Rephrase with an explicit quoted value (e.g. Search ' +

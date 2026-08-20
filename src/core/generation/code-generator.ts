@@ -248,24 +248,6 @@ function stepLines(
           `submitResponse = response;`,
         ];
       }
-      // A step whose resolved target follows the generic "Add to
-      // <Container>" convention (see requirement-parser.ts's
-      // ADD_TO_CONTAINER_PATTERN) commonly triggers an async fetch/XHR
-      // with no visible DOM change ui.click() itself would ever wait for
-      // — without waiting for the resulting network response, a
-      // following step (e.g. "Open the cart", a genuine navigation) can
-      // race ahead of the write it depends on and observe stale state.
-      // Same Promise.all pattern as the submit-response capture above,
-      // just discarding the response — this is purely a synchronization
-      // fix, not something a later step consumes.
-      if (/^add to /i.test(resolved.detail ?? '')) {
-        return [
-          `await Promise.all([`,
-          `  page.waitForResponse((r) => r.request().method() !== 'GET'),`,
-          `  ui.click(${targetExpression(resolved.detail ?? '', resolved.formIndex)}),`,
-          `]);`,
-        ];
-      }
       return [`await ui.click(${targetExpression(resolved.detail ?? '', resolved.formIndex)});`];
     case 'verify': {
       // A UI business requirement's oracle is always the UI's own
