@@ -161,3 +161,14 @@ export interface GenerationResult {
   stableTestId: string;
   fullyMapped: boolean;
 }
+
+/**
+ * applications/<app>/data/<profile>.json, generically typed for GAP's own
+ * deterministic test-data lookups (never hardcoded per-application in
+ * core) — see generation-orchestrator.ts's resolveTestDataProfile. Keyed
+ * per entity-type/field noun; `searchTerm` backs a "Search for a/an
+ * <noun>" step with no literal value, `value` backs an "Enter/Fill
+ * <field>"-shaped step with no literal value. Either or both may be
+ * present per key.
+ */
+export type TestDataProfile = Record<string, { searchTerm?: string; value?: string } | undefined>;

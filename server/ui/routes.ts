@@ -72,7 +72,7 @@ function deriveModule(requirementText: string): string {
   return words[0] || 'general';
 }
 
-interface GenerateRequestBody {
+export interface GenerateRequestBody {
   url: string;
   requirement: string;
   steps: string;
@@ -101,7 +101,7 @@ router.post('/api/generate', (req, res) => {
   });
 });
 
-async function runGenerationJob(job: Job, input: GenerateRequestBody): Promise<void> {
+export async function runGenerationJob(job: Job, input: GenerateRequestBody): Promise<void> {
   const application = applicationIdFromUrl(input.url);
   job.application = application;
   const { requirementText, businessRequirement } = requirementInputFor(
@@ -109,6 +109,20 @@ async function runGenerationJob(job: Job, input: GenerateRequestBody): Promise<v
     input.steps ?? '',
   );
 
+  // Normal web generation is NON-INTERACTIVE: no resolveMissingValue/
+  // resolveAmbiguity callback is wired up here at all, so this path
+  // structurally CANNOT end up waiting on a job.askQuestion() Promise for
+  // a browser response that may never come (the actual cause of jobs
+  // stuck at "Waiting for approval" — a missing-value clarification, or,
+  // pre-margin-policy, a locator ambiguity, both used to silently wait
+  // here). GAP resolves deterministically from application config/data
+  // (see generation-orchestrator.ts's resolveTestDataProfile) or fails
+  // safely with a clear reason — `outcome.status === 'blocked'` below
+  // covers both cases uniformly. `interactiveResolution` is deliberately
+  // left unset (false), matching every other non-interactive caller
+  // (gap:test, gap.ts's NL flow). job.askQuestion/the /api/jobs/:id/answer
+  // endpoint remain intact for a possible future, explicitly-opt-in
+  // debug/interactive entry point — just never reachable from here.
   const outcome: GenerationOutcome = await runGenerationPipeline({
     application,
     environment: input.environment,
@@ -118,29 +132,6 @@ async function runGenerationJob(job: Job, input: GenerateRequestBody): Promise<v
     module: undefined,
     diagnose: true,
     onPhase: (phase, detail) => job.emit({ type: 'phase', phase, detail }),
-    resolveMissingValue: async (field, raw) => {
-      const answer = await job.askQuestion('missing-value', `I need a value for "${field}".`, [
-        { label: raw, description: raw, value: raw },
-      ]);
-      return answer;
-    },
-    resolveAmbiguity: async (step, candidates) => {
-      const answer = await job.askQuestion(
-        'ambiguity',
-        `I found ${candidates.length} possible matches for "${step.raw}".`,
-        candidates.map((c) => ({
-          label: c.label,
-          description: c.reasons.join('; '),
-          value: c.value,
-          pageName: c.pageName,
-          pageUrl: c.pageUrl,
-          relationship: c.relationship,
-          matchConfidence: c.matchConfidence,
-          elementType: c.elementType,
-        })),
-      );
-      return answer;
-    },
   });
 
   // buildTestSpecification's own module-detection only looks at navigate

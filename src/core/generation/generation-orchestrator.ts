@@ -22,7 +22,13 @@ import {
   lintFile,
   runGeneratedTest,
 } from './generated-test-validator';
-import { MappingCandidate, RawStep, StepMapping, TestSpecification } from './generation-types';
+import {
+  MappingCandidate,
+  RawStep,
+  StepMapping,
+  TestDataProfile,
+  TestSpecification,
+} from './generation-types';
 
 export interface GenerationInput {
   application: string;
@@ -159,25 +165,24 @@ function resolveDiscoveryCredential(application: string): DiscoveryCredential | 
 
 /**
  * The SAME application data-profile file resolveDiscoveryCredential reads
- * above, generically typed for GAP's own test-data lookups (e.g. a
- * "Search for a product" step with no literal value — see ui-mapper.ts's
- * deriveValueFrom resolution) rather than credentials. An application
- * simply adds whatever entity-type keys it needs (e.g.
- * { "product": { "searchTerm": "wireless mouse" } }) to its own
- * applications/<app>/data/<profile>.json — never hardcoded per-application
- * in core. Returns undefined on any missing piece, same as above.
+ * above, generically typed for GAP's own test-data lookups rather than
+ * credentials — never hardcoded per-application in core. An application
+ * simply adds whatever keys it needs to its own
+ * applications/<app>/data/<profile>.json:
+ *   - `<entityType>.searchTerm` for a "Search for a/an <noun>" step with
+ *     no literal value (e.g. { "product": { "searchTerm": "wireless mouse" } }
+ *     — see ui-mapper.ts's deriveValueFrom resolution).
+ *   - `<field>.value` for an "Enter <field>"/"Fill <field>"-shaped step
+ *     with no literal value (e.g. { "reason": { "value": "Family trip" } }
+ *     — see this file's needsClarification resolution above).
+ * Returns undefined on any missing piece, same as resolveDiscoveryCredential.
  */
-function resolveTestDataProfile(
-  application: string,
-): Record<string, { searchTerm?: string } | undefined> | undefined {
+function resolveTestDataProfile(application: string): TestDataProfile | undefined {
   try {
     const app = getApplication(application);
     const dataProfileId = app.dataProfiles[0];
     if (!dataProfileId) return undefined;
-    return loadDataProfile<Record<string, { searchTerm?: string } | undefined>>(
-      application,
-      dataProfileId,
-    );
+    return loadDataProfile<TestDataProfile>(application, dataProfileId);
   } catch {
     return undefined;
   }
@@ -380,16 +385,44 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
   let parsed = parseRequirement(input.requirementText);
   let requirementText = input.requirementText;
 
-  // "Enter reason"/"Fill Reason" names a field but states no value — there's
-  // no safe default for free-form business text, so ask (if a resolver was
-  // given) instead of either guessing or only discovering it's missing 10+
-  // seconds later via a submit that silently never fires. A human's answer
-  // re-parses back in as a proper quoted `Fill <field> as "<value>"`, the
-  // same "re-parse with the exact literal substituted" pattern used for
-  // every other kind of ambiguity in this pipeline.
+  // Loaded here (not later) so the SAME test-data profile backs both
+  // clarification-value resolution below AND ui-mapper.ts's entity/search-
+  // term derivation further down — one source of truth per application.
+  const dataProfile = resolveTestDataProfile(input.application);
+
+  // "Enter reason"/"Fill Reason" names a field but states no value.
+  // Resolved from the application's own test-data profile FIRST — the
+  // SAME architecture ui-mapper.ts's search-term derivation already uses
+  // (applications/<app>/data/<profile>.json's own <field>.value key) —
+  // never invented. A profile-supplied value re-parses back in as a
+  // proper quoted `Fill <field> as "<value>"`, the same "re-parse with the
+  // exact literal substituted" pattern used for every other kind of
+  // ambiguity in this pipeline.
+  let profileResolvedAnything = false;
+  for (const item of parsed.needsClarification) {
+    const fromProfile = dataProfile?.[item.field.toLowerCase()]?.value;
+    if (fromProfile) {
+      requirementText = requirementText.replace(item.raw, `Fill ${item.field} as "${fromProfile}"`);
+      profileResolvedAnything = true;
+    }
+  }
+  if (profileResolvedAnything) {
+    parsed = parseRequirement(requirementText);
+  }
+
+  // Whatever the data profile didn't cover is asked about ONLY in explicit
+  // interactive/debug mode (interactiveResolution: true) — normal
+  // (non-interactive) generation NEVER asks a human and never waits on a
+  // callback here; it falls straight through to the "still needs
+  // clarification" safe-failure below. This is the product requirement:
+  // no caller (the web UI, gap:test, gap.ts's NL flow) may leave a
+  // Promise waiting on a browser response merely by having wired up a
+  // resolver — the pipeline itself refuses to call it outside debug mode.
   for (
     let attempt = 0;
-    attempt < parsed.needsClarification.length + 1 && parsed.needsClarification.length > 0;
+    input.interactiveResolution &&
+    attempt < parsed.needsClarification.length + 1 &&
+    parsed.needsClarification.length > 0;
     attempt++
   ) {
     if (!input.resolveMissingValue) break;
@@ -407,14 +440,17 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
 
   if (parsed.needsClarification.length > 0) {
     const lines = parsed.needsClarification.map(
-      (c) => `  - "${c.raw}" — what value should "${c.field}" be filled with?`,
+      (c) =>
+        `  - "${c.raw}" — no test-data value configured for "${c.field.toLowerCase()}.value", ` +
+        'and no value stated explicitly.',
     );
     return {
       status: 'blocked',
       message:
         `${parsed.needsClarification.length} step(s) name a field but never state what value to ` +
         `fill it with — never guessed:\n${lines.join('\n')}\n` +
-        `Rewrite with an explicit value, e.g. Fill Reason as "Family trip".`,
+        `Rewrite with an explicit value (e.g. Fill Reason as "Family trip"), or add ` +
+        `"<field>": { "value": "..." } to applications/${input.application}/data/<profile>.json.`,
     };
   }
 
@@ -431,20 +467,26 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     };
   }
 
-  const dataProfile = resolveTestDataProfile(input.application);
   let mappings = mapRequirementToUI(input.application, map, parsed.steps, {
     interactive: input.interactiveResolution,
     dataProfile,
   });
 
-  // MEDIUM confidence: real evidence exists for more than one candidate.
-  // Never guessed — ask (if a resolver was given), and re-score with the
-  // human's exact choice substituted in as the step's target. That choice
-  // is one of the discovered names verbatim, so it re-scores as an exact
-  // match (HIGH) — this is re-mapping, not a second resolution path.
+  // MEDIUM confidence auto-selects on its own (see element-scorer.ts's
+  // margin policy) — `ambiguous` is only ever produced by ui-mapper.ts at
+  // all when `interactiveResolution` is true (see MapRequirementOptions),
+  // so this loop is structurally unreachable in normal generation. The
+  // explicit `input.interactiveResolution` check here is defense in
+  // depth, not the only gate — the ARCHITECTURE guarantees no caller can
+  // end up waiting on `resolveAmbiguity` merely by having wired one up:
+  // normal (non-interactive) generation never asks a human, it fails
+  // safely with a full diagnostic instead (see the "still ambiguous"
+  // block below). Only an explicit interactive/debug caller reaches here.
   for (
     let attempt = 0;
-    attempt < parsed.steps.length && mappings.some((m) => m.ambiguous);
+    input.interactiveResolution &&
+    attempt < parsed.steps.length &&
+    mappings.some((m) => m.ambiguous);
     attempt++
   ) {
     if (!input.resolveAmbiguity) break;

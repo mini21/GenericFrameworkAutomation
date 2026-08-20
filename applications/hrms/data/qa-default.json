@@ -19,5 +19,8 @@
     "username": "manager1",
     "password": "Manager123!",
     "name": "Morgan Manager"
+  },
+  "reason": {
+    "value": "Family trip"
   }
 }

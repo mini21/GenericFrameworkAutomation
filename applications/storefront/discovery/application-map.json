@@ -1,7 +1,7 @@
 {
   "application": "storefront",
   "baseUrl": "http://localhost:4300",
-  "generatedAt": "2026-08-20T08:14:35.058Z",
+  "generatedAt": "2026-08-20T11:22:17.197Z",
   "pages": [
     {
       "path": "/",
