@@ -45,6 +45,17 @@ const FILL_VALUE_FIRST_PATTERN =
 // empty string) — it's surfaced as something to ask about instead.
 const FILL_MISSING_VALUE_PATTERN = /^(?:fill|enter|set)\s+(?:the\s+)?(.+?)$/i;
 const SELECT_QUOTED_PATTERN = /^select\s+"([^"]+)"\s+(?:for|in|from)\s+(.+)$/i;
+// Checkbox intent — deliberately requires the explicit word "checkbox"/
+// "box" so this can never collide with "check"/"confirm" used as a VERIFY
+// synonym ("Check that results are displayed", "Check order is created" —
+// see BARE_VERIFY_PATTERN below, which "check ..." would otherwise also
+// match). Two orders, same as the fill patterns: label-first ("Check the
+// Terms checkbox") and "checkbox for/labeled <label>" (checkbox-word
+// first). Generic English structure, never a specific app's checkbox name.
+const CHECK_LABEL_FIRST_PATTERN =
+  /^(?:check|enable|tick|select)\s+(?:the\s+)?"?([^".]+?)"?\s+(?:checkbox|box)$/i;
+const CHECK_BOX_FIRST_PATTERN =
+  /^(?:check|enable|tick)\s+the\s+(?:checkbox|box)\s+(?:for|labeled|labelled)\s+"?([^".]+?)"?$/i;
 // Generic "submit the <anything>" recognition — "submit the request",
 // "submit the leave request", "submit the search", "submit the expense
 // approval form", etc. Everything after "the" is free-form business
@@ -126,7 +137,11 @@ export function parseRequirement(text: string): ParsedRequirement {
     } else if ((match = FILL_VALUE_FIRST_PATTERN.exec(sentence))) {
       steps.push({ action: 'fill', target: match[2].trim(), value: match[1], raw: sentence });
     } else if ((match = SELECT_QUOTED_PATTERN.exec(sentence))) {
-      steps.push({ action: 'fill', target: match[2].trim(), value: match[1], raw: sentence });
+      steps.push({ action: 'select', target: match[2].trim(), value: match[1], raw: sentence });
+    } else if ((match = CHECK_LABEL_FIRST_PATTERN.exec(sentence))) {
+      steps.push({ action: 'check', target: match[1].trim(), raw: sentence });
+    } else if ((match = CHECK_BOX_FIRST_PATTERN.exec(sentence))) {
+      steps.push({ action: 'check', target: match[1].trim(), raw: sentence });
     } else if (SUBMIT_REQUEST_PATTERN.test(sentence)) {
       steps.push({ action: 'click', target: 'submit', raw: sentence });
     } else if ((match = VERIFY_PATTERN.exec(sentence))) {

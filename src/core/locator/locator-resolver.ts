@@ -7,7 +7,7 @@ import {
   STRATEGY_CONFIDENCE,
 } from './locator-types';
 
-type Action = 'click' | 'fill';
+type Action = 'click' | 'fill' | 'select';
 type TryResult = 'unique' | 'not found' | 'ambiguous' | 'not usable';
 
 interface Candidate {
@@ -21,6 +21,12 @@ interface Candidate {
 // so the chain doesn't need to rely on the role guess at all.
 const CLICK_ROLES = ['button', 'link', 'checkbox', 'radio', 'menuitem', 'tab'] as const;
 const FILL_ROLES = ['textbox', 'searchbox', 'spinbutton'] as const;
+// A native <select> exposes as role "combobox" (single-select) or
+// "listbox" (multi-select/size>1) in the accessibility tree — the same two
+// roles page-crawler.ts's SELECT_ROLES already discovers by, so this action
+// resolves against exactly what discovery already found, generically, for
+// any application's dropdown/option control.
+const SELECT_ROLES = ['combobox', 'listbox'] as const;
 
 function slugify(name: string): string {
   return name
@@ -42,6 +48,10 @@ async function isUsable(locator: Locator, action: Action): Promise<boolean> {
     if (!(await locator.isVisible())) return false;
     if (action === 'click') return await locator.isEnabled();
     if (action === 'fill') return (await locator.isEnabled()) && (await locator.isEditable());
+    // 'select': a <select> is never "editable" in Playwright's sense (that
+    // check is for text-input-shaped controls) — enabled + visible is the
+    // real, generic precondition for selectOption() to succeed.
+    if (action === 'select') return await locator.isEnabled();
     return true;
   } catch {
     return false;
@@ -65,10 +75,14 @@ export class LocatorResolver {
   ): Promise<{ locator: Locator; resolution: Omit<LocatorResolution, 'testName' | 'timestamp'> }> {
     const attempts: string[] = [];
     let originalLocator: string | undefined;
+    const root: Page | Locator =
+      intent.scope !== undefined
+        ? this.page.locator('form').nth(intent.scope.formIndex)
+        : this.page;
 
     if (intent.primary) {
       originalLocator = describePrimary(intent.primary);
-      const primaryCandidate = this.buildPrimaryCandidate(intent.primary);
+      const primaryCandidate = this.buildPrimaryCandidate(root, intent.primary);
       const result = await this.tryCandidate(primaryCandidate, action);
       if (result === 'unique') {
         return {
@@ -85,7 +99,7 @@ export class LocatorResolver {
       attempts.push(`${primaryCandidate.description} -> ${result}`);
     }
 
-    for (const candidate of this.buildChainCandidates(intent, action)) {
+    for (const candidate of this.buildChainCandidates(root, intent, action)) {
       const result = await this.tryCandidate(candidate, action);
       if (result === 'unique') {
         const confidence = STRATEGY_CONFIDENCE[candidate.strategy];
@@ -117,68 +131,76 @@ export class LocatorResolver {
     );
   }
 
-  private buildPrimaryCandidate(primary: NonNullable<LocatorIntent['primary']>): Candidate {
+  private buildPrimaryCandidate(
+    root: Page | Locator,
+    primary: NonNullable<LocatorIntent['primary']>,
+  ): Candidate {
     if (primary.testId) {
       return {
         strategy: 'primary',
-        locator: this.page.getByTestId(primary.testId),
+        locator: root.getByTestId(primary.testId),
         description: `testId="${primary.testId}"`,
       };
     }
     if (primary.css) {
       return {
         strategy: 'primary',
-        locator: this.page.locator(primary.css),
+        locator: root.locator(primary.css),
         description: `css="${primary.css}"`,
       };
     }
     return {
       strategy: 'primary',
-      locator: this.page.locator(`xpath=${primary.xpath}`),
+      locator: root.locator(`xpath=${primary.xpath}`),
       description: `xpath="${primary.xpath}"`,
     };
   }
 
-  private *buildChainCandidates(intent: LocatorIntent, action: Action): Generator<Candidate> {
-    const roles = action === 'click' ? CLICK_ROLES : FILL_ROLES;
+  private *buildChainCandidates(
+    root: Page | Locator,
+    intent: LocatorIntent,
+    action: Action,
+  ): Generator<Candidate> {
+    const scopePrefix = intent.scope !== undefined ? `form[${intent.scope.formIndex}] ` : '';
+    const roles = action === 'click' ? CLICK_ROLES : action === 'fill' ? FILL_ROLES : SELECT_ROLES;
     for (const role of roles) {
       yield {
         strategy: 'role',
-        locator: this.page.getByRole(role, { name: intent.name }),
-        description: `getByRole("${role}", { name: "${intent.name}" })`,
+        locator: root.getByRole(role, { name: intent.name }),
+        description: `${scopePrefix}getByRole("${role}", { name: "${intent.name}" })`,
       };
     }
     yield {
       strategy: 'label',
-      locator: this.page.getByLabel(intent.name),
-      description: `getByLabel("${intent.name}")`,
+      locator: root.getByLabel(intent.name),
+      description: `${scopePrefix}getByLabel("${intent.name}")`,
     };
     yield {
       strategy: 'placeholder',
-      locator: this.page.getByPlaceholder(intent.name),
-      description: `getByPlaceholder("${intent.name}")`,
+      locator: root.getByPlaceholder(intent.name),
+      description: `${scopePrefix}getByPlaceholder("${intent.name}")`,
     };
     yield {
       strategy: 'text',
-      locator: this.page.getByText(intent.name, { exact: true }),
-      description: `getByText("${intent.name}", { exact: true })`,
+      locator: root.getByText(intent.name, { exact: true }),
+      description: `${scopePrefix}getByText("${intent.name}", { exact: true })`,
     };
     yield {
       strategy: 'testid',
-      locator: this.page.getByTestId(slugify(intent.name)),
-      description: `getByTestId("${slugify(intent.name)}")`,
+      locator: root.getByTestId(slugify(intent.name)),
+      description: `${scopePrefix}getByTestId("${slugify(intent.name)}")`,
     };
     if (intent.fallback?.css) {
       yield {
         strategy: 'css',
-        locator: this.page.locator(intent.fallback.css),
+        locator: root.locator(intent.fallback.css),
         description: `css="${intent.fallback.css}"`,
       };
     }
     if (intent.fallback?.xpath) {
       yield {
         strategy: 'xpath',
-        locator: this.page.locator(`xpath=${intent.fallback.xpath}`),
+        locator: root.locator(`xpath=${intent.fallback.xpath}`),
         description: `xpath="${intent.fallback.xpath}"`,
       };
     }

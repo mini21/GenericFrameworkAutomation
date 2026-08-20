@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Users</title>
+  </head>
+  <body>
+    <h1>Users</h1>
+    <ul id="user-list"></ul>
+    <a href="/users/create.html">Add User</a>
+
+    <script>
+      fetch('/api/users')
+        .then((r) => r.json())
+        .then(({ users }) => {
+          const list = document.getElementById('user-list');
+          for (const u of users) {
+            const li = document.createElement('li');
+            li.textContent = `${u.name} (${u.email}) — ${u.role}`;
+            list.appendChild(li);
+          }
+        });
+    </script>
+  </body>
+</html>

@@ -45,6 +45,21 @@ function nextGeneratedIndex(application: string, module: string): number {
   return highest + 1;
 }
 
+/**
+ * A resolved step's target, as the literal expression to pass to
+ * ui.click/fill/selectOption/check. Plain `"Name"` in the overwhelming
+ * common case; a `{ name, scope: { formIndex } }` object literal only when
+ * this candidate came from one of several forms on its page (see
+ * DiscoveredElement.formIndex / LocatorIntent.scope) — the runtime piece of
+ * the fix for two forms sharing an identically-named control, matching
+ * whatever a human's disambiguation choice (or an unambiguous unique
+ * per-form match) actually resolved to.
+ */
+function targetExpression(name: string, formIndex: number | undefined): string {
+  if (formIndex === undefined) return JSON.stringify(name);
+  return `{ name: ${JSON.stringify(name)}, scope: { formIndex: ${formIndex} } }`;
+}
+
 function valueExpression(rawValue: string | undefined): string {
   if (rawValue === '{{date:start}}') return 'startDate';
   if (rawValue === '{{date:end}}') return 'endDate';
@@ -138,15 +153,32 @@ function stepLines(
         `await page.goto(${JSON.stringify(detail.path)});`,
         `await ui.fill(${JSON.stringify(detail.username)}, profile.${detail.profileKey}.username);`,
         `await ui.fill(${JSON.stringify(detail.password)}, profile.${detail.profileKey}.password);`,
+        `const urlBeforeLogin = page.url();`,
         `await ui.click(${JSON.stringify(detail.button)});`,
+        // A login form may submit via a real navigation, or via a
+        // fetch()-then-redirect where the click itself returns before the
+        // URL actually changes (a click-then-navigate race is exactly what
+        // exposed this: without waiting here, the NEXT step's own
+        // navigation can collide with an in-flight post-login redirect and
+        // get aborted). Generic — waits for ANY URL change, never assumes
+        // a specific destination path. Best-effort: an app whose login
+        // genuinely never navigates (e.g. an in-place SPA update) must not
+        // fail the whole test over this wait alone.
+        `await page.waitForURL((url) => url.toString() !== urlBeforeLogin, { timeout: 10000 }).catch(() => {});`,
       ];
     }
     case 'navigate':
       return [`await page.goto(${JSON.stringify(resolved.detail ?? '')});`];
     case 'fill':
       return [
-        `await ui.fill(${JSON.stringify(resolved.detail ?? '')}, ${valueExpression(step.step.value)});`,
+        `await ui.fill(${targetExpression(resolved.detail ?? '', resolved.formIndex)}, ${valueExpression(step.step.value)});`,
       ];
+    case 'select':
+      return [
+        `await ui.selectOption(${targetExpression(resolved.detail ?? '', resolved.formIndex)}, ${valueExpression(step.step.value)});`,
+      ];
+    case 'check':
+      return [`await ui.check(${targetExpression(resolved.detail ?? '', resolved.formIndex)});`];
     case 'click':
       if (step.step.target === 'submit' && shouldCaptureSubmitResponse) {
         // A submit control's own alert/status region often reports BOTH
@@ -167,12 +199,12 @@ function stepLines(
         return [
           `const [response] = await Promise.all([`,
           `  page.waitForResponse((r) => r.request().method() !== 'GET'),`,
-          `  ui.click(${JSON.stringify(resolved.detail ?? '')}),`,
+          `  ui.click(${targetExpression(resolved.detail ?? '', resolved.formIndex)}),`,
           `]);`,
           `submitResponse = response;`,
         ];
       }
-      return [`await ui.click(${JSON.stringify(resolved.detail ?? '')});`];
+      return [`await ui.click(${targetExpression(resolved.detail ?? '', resolved.formIndex)});`];
     case 'verify': {
       // A UI business requirement's oracle is always the UI's own
       // observable result: a quoted expected text asserts by text; a bare

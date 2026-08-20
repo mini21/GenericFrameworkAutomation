@@ -61,15 +61,31 @@ export default defineConfig({
   ],
   // Native Playwright app-under-test lifecycle management — no custom
   // process orchestration. Idempotent locally (reuseExistingServer skips
-  // startup if already running); every run pays the HRMS build+boot cost
-  // once, even one that only touches the framework's own generic examples.
+  // startup if already running); every run pays each app's build+boot cost
+  // once. AdminPanel/Storefront are the two unrelated synthetic
+  // applications proving the generic engine (see applications/adminpanel,
+  // applications/storefront) — same treatment as HRMS, not a special case.
   // See docs/PLATFORM.md for why this tradeoff was accepted.
-  webServer: {
-    command: 'npm run hrms:start',
-    url: 'http://localhost:4100/login.html',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
+  webServer: [
+    {
+      command: 'npm run hrms:start',
+      url: 'http://localhost:4100/login.html',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+    {
+      command: 'npm run adminpanel:start',
+      url: 'http://localhost:4200/login.html',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+    {
+      command: 'npm run storefront:start',
+      url: 'http://localhost:4300/',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+  ],
   use: {
     baseURL: config.baseUrl,
     trace: 'retain-on-failure',

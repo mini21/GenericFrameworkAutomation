@@ -36,8 +36,14 @@ test.describe(`Application Discovery — page mapping ${TAGS.SMOKE}`, () => {
     expect(username?.verified?.confidence).toBe('HIGH');
 
     expect(map.selects.map((s) => s.name)).toEqual(['Country']);
-    // Selects are reported but never run through LocatorResolver (neither click nor fill fits a <select>).
-    expect(map.selects[0].verified).toBeUndefined();
+    // Selects ARE now run through LocatorResolver, via the dedicated
+    // 'select' action (see locator-resolver.ts's SELECT_ROLES) — a real
+    // resolvable capability, not just a discovered-but-inert entry.
+    expect(map.selects[0].verified).toEqual({
+      strategy: 'role',
+      confidence: 'HIGH',
+      resolvedLocator: 'getByRole("combobox", { name: "Country" })',
+    });
 
     expect(map.checkboxes.map((c) => c.name)).toEqual(['I agree']);
   });

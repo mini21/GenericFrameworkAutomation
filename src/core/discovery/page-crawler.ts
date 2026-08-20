@@ -28,10 +28,14 @@ function parseAriaSnapshot(snapshot: string): { role: string; name: string }[] {
 async function verify(
   resolver: LocatorResolver,
   name: string,
-  action: 'click' | 'fill',
+  action: 'click' | 'fill' | 'select',
+  formIndex?: number,
 ): Promise<DiscoveredElement['verified']> {
   try {
-    const { resolution } = await resolver.resolve({ name }, action);
+    const { resolution } = await resolver.resolve(
+      formIndex !== undefined ? { name, scope: { formIndex } } : { name },
+      action,
+    );
     return {
       strategy: resolution.strategy,
       confidence: resolution.confidence,
@@ -43,6 +47,163 @@ async function verify(
     // block, so the map stays honest about what's actually clickable/fillable.
     return undefined;
   }
+}
+
+interface FormContext {
+  /** Best-effort label per form, in document order (index = formIndex, matching `page.locator('form').nth(i)`). */
+  labels: string[];
+  /** `${role}::${name}` -> ordered list of formIndex values, one per real DOM occurrence inside a form. */
+  occurrencesByKey: Record<string, number[]>;
+}
+
+const NO_FORM_CONTEXT: FormContext = { labels: [], occurrencesByKey: {} };
+
+/**
+ * Generic form-identity discovery — ONLY does anything when a page has 2+
+ * forms; the single/no-form case (by far the common one) is completely
+ * unaffected, short-circuiting on `NO_FORM_CONTEXT` before any of this
+ * runs. A form's own label is its aria-label, else its <legend>, else its
+ * `name` attribute, else the nearest heading appearing before it in the
+ * document, else a positional fallback — generic HTML/ARIA authoring
+ * signals, never app-specific vocabulary (see the module comment at the
+ * top of this file re: no "if amazon"/"if hrms").
+ *
+ * `occurrencesByKey` records which form each button/input/select/link
+ * genuinely lives in, in document order, so mapPage's own dedup below can
+ * tell "the same control listed twice" apart from "two DIFFERENT controls
+ * that happen to share a name" (e.g. an Employee form's "Submit" and a
+ * Manager form's "Submit") — the concrete, generic fix for a Manual QA
+ * otherwise being asked to pick between two visually identical candidates
+ * with no way to tell them apart.
+ */
+async function collectFormContext(page: Page): Promise<FormContext> {
+  const formCount = await page.locator('form').count();
+  if (formCount < 2) return NO_FORM_CONTEXT;
+
+  // A SINGLE flat, document-order query covering forms, their labeling
+  // signals, headings, and every potential field tag — deliberately never
+  // a nested `element.querySelectorAll(...)` (unlike `.closest()`/
+  // `.querySelector()`, which already work fine elsewhere in this file,
+  // `.querySelectorAll()`'s result loses its element typing under this
+  // project's DOM-lib-free tsconfig). HTML forms can never nest, so a
+  // running "which form am I inside" counter — incremented once per 'form'
+  // tag encountered, in document order — is exact, not a heuristic.
+  const flat = await page
+    .locator('form, legend, h1, h2, h3, h4, h5, h6, button, a[href], input, select, textarea')
+    .evaluateAll((elements) =>
+      elements.map((el) => {
+        const withExtras = el as unknown as {
+          labels?: { textContent: string | null }[];
+          value?: string;
+          closest?: (selector: string) => unknown;
+        };
+        const tag = el.tagName.toLowerCase();
+        const labelText = (withExtras.labels && withExtras.labels[0]?.textContent) || '';
+        const insideForm = Boolean(withExtras.closest && withExtras.closest('form'));
+
+        let role: string | undefined;
+        let name = '';
+        if (tag === 'button') {
+          role = 'button';
+          name = (el.textContent || withExtras.value || el.getAttribute('aria-label') || '').trim();
+        } else if (tag === 'a') {
+          role = 'link';
+          name = (el.textContent || el.getAttribute('aria-label') || '').trim();
+        } else if (tag === 'select') {
+          role = 'combobox';
+          name = (labelText || el.getAttribute('aria-label') || '').trim();
+        } else if (tag === 'textarea') {
+          role = 'textbox';
+          name = (
+            labelText ||
+            el.getAttribute('aria-label') ||
+            el.getAttribute('placeholder') ||
+            ''
+          ).trim();
+        } else if (tag === 'input') {
+          const type = (el.getAttribute('type') || 'text').toLowerCase();
+          if (type === 'submit' || type === 'button') {
+            role = 'button';
+            name = (
+              withExtras.value ||
+              el.getAttribute('aria-label') ||
+              el.textContent ||
+              ''
+            ).trim();
+          } else if (type === 'checkbox') {
+            role = 'checkbox';
+          } else if (type === 'radio') {
+            role = 'radio';
+          } else if (type !== 'hidden') {
+            role = type === 'search' ? 'searchbox' : type === 'number' ? 'spinbutton' : 'textbox';
+          }
+          if (role === 'checkbox' || role === 'radio' || (role && !name)) {
+            name = (
+              labelText ||
+              el.getAttribute('aria-label') ||
+              el.getAttribute('placeholder') ||
+              ''
+            ).trim();
+          }
+        }
+
+        return {
+          tag,
+          text: (el.textContent || '').trim(),
+          ariaLabel: (el.getAttribute('aria-label') || '').trim(),
+          nameAttr: (el.getAttribute('name') || '').trim(),
+          insideForm,
+          field: role && name ? { role, name } : undefined,
+        };
+      }),
+    );
+
+  const labels: string[] = [];
+  const occurrencesByKey: Record<string, number[]> = {};
+  let currentFormIndex = -1;
+  let currentFormAriaLabel = '';
+  let currentFormName = '';
+  let sawLegendForCurrentForm = false;
+  let lastHeadingBeforeCurrentForm = '';
+  let lastHeadingSeen = '';
+
+  for (const el of flat) {
+    if (el.tag === 'form') {
+      currentFormIndex++;
+      currentFormAriaLabel = el.ariaLabel;
+      currentFormName = el.nameAttr;
+      sawLegendForCurrentForm = false;
+      lastHeadingBeforeCurrentForm = lastHeadingSeen;
+      labels.push(''); // placeholder, filled in once this form's own signals are known (below)
+      continue;
+    }
+    if (/^h[1-6]$/.test(el.tag)) {
+      lastHeadingSeen = el.text;
+      continue;
+    }
+    if (el.tag === 'legend' && currentFormIndex >= 0 && !sawLegendForCurrentForm && el.text) {
+      labels[currentFormIndex] = el.text;
+      sawLegendForCurrentForm = true;
+      continue;
+    }
+    if (!el.field || !el.insideForm || currentFormIndex < 0) continue;
+    const key = `${el.field.role}::${el.field.name}`;
+    (occurrencesByKey[key] ||= []).push(currentFormIndex);
+    if (!labels[currentFormIndex] && !sawLegendForCurrentForm) {
+      labels[currentFormIndex] =
+        currentFormAriaLabel ||
+        currentFormName ||
+        lastHeadingBeforeCurrentForm ||
+        `Form ${currentFormIndex + 1}`;
+    }
+  }
+  // A form with zero fields (or whose label was never resolved above)
+  // still gets a positional fallback, never left blank.
+  for (let i = 0; i <= currentFormIndex; i++) {
+    if (!labels[i]) labels[i] = `Form ${i + 1}`;
+  }
+
+  return { labels, occurrencesByKey };
 }
 
 interface FormFieldEvidence {
@@ -171,21 +332,29 @@ async function collectConfirmationRegions(page: Page): Promise<ConfirmationRegio
  * no app-specific selectors, just what any HTML form already exposes.
  */
 export async function mapPage(page: Page): Promise<PageMap> {
-  const [title, ariaSnapshot, testIds, formFieldEvidence, linkHrefsByName, confirmationRegions] =
-    await Promise.all([
-      page.title(),
-      page.locator('body').ariaSnapshot(),
-      page
-        .locator('[data-testid]')
-        .evaluateAll((elements) =>
-          elements
-            .map((el) => el.getAttribute('data-testid'))
-            .filter((value): value is string => Boolean(value)),
-        ),
-      collectFormFieldEvidence(page),
-      collectLinkHrefs(page),
-      collectConfirmationRegions(page),
-    ]);
+  const [
+    title,
+    ariaSnapshot,
+    testIds,
+    formFieldEvidence,
+    linkHrefsByName,
+    confirmationRegions,
+    formContext,
+  ] = await Promise.all([
+    page.title(),
+    page.locator('body').ariaSnapshot(),
+    page
+      .locator('[data-testid]')
+      .evaluateAll((elements) =>
+        elements
+          .map((el) => el.getAttribute('data-testid'))
+          .filter((value): value is string => Boolean(value)),
+      ),
+    collectFormFieldEvidence(page),
+    collectLinkHrefs(page),
+    collectConfirmationRegions(page),
+    collectFormContext(page),
+  ]);
 
   const resolver = new LocatorResolver(page);
 
@@ -199,7 +368,18 @@ export async function mapPage(page: Page): Promise<PageMap> {
   let forms = 0;
   let navigation = 0;
 
-  const seen = new Set<string>();
+  // Tracks how many of each `${role}::${name}` key have been consumed so
+  // far. Normally (0 or 1 real form occurrence for this key — the
+  // overwhelming common case) this preserves the EXACT prior behavior: only
+  // the first ariaSnapshot occurrence is ever recorded, name-deduped, no
+  // form scoping applied. Only when `formContext.occurrencesByKey` proves a
+  // key genuinely occurs in MORE THAN ONE form (e.g. two different forms
+  // each with their own "Submit" button) does this individuate — one
+  // DiscoveredElement per real DOM occurrence, each independently verified
+  // against ITS OWN form via LocatorIntent.scope, so two same-named
+  // controls in different forms stop collapsing into one and become two
+  // genuinely distinct, genuinely resolvable candidates.
+  const consumed = new Map<string, number>();
   for (const { role, name } of parseAriaSnapshot(ariaSnapshot)) {
     // Structural landmarks are counted regardless of whether they carry an
     // accessible name — most tables/forms/nav regions don't.
@@ -218,30 +398,68 @@ export async function mapPage(page: Page): Promise<PageMap> {
     if (!name.trim()) continue; // every remaining category needs a name to be useful
 
     const key = `${role}::${name}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const occurrences = formContext.occurrencesByKey[key];
+    const seenCount = consumed.get(key) ?? 0;
+    const multiForm = occurrences !== undefined && occurrences.length > 1;
+
+    if (multiForm) {
+      if (seenCount >= occurrences.length) continue;
+    } else if (seenCount >= 1) {
+      continue;
+    }
+    consumed.set(key, seenCount + 1);
+    const formIndex = multiForm ? occurrences[seenCount] : undefined;
+    const formLabel = formIndex !== undefined ? formContext.labels[formIndex] : undefined;
 
     const inputType = formFieldEvidence.inputTypesByLabel[name.toLowerCase()];
 
     if (role === 'heading') {
       headings.push(name);
     } else if (role === 'checkbox' || role === 'radio') {
-      checkboxes.push({ role, name, verified: await verify(resolver, name, 'click') });
+      checkboxes.push({
+        role,
+        name,
+        formIndex,
+        formLabel,
+        verified: await verify(resolver, name, 'click', formIndex),
+      });
     } else if (role === 'link') {
       links.push({
         role,
         name,
         href: linkHrefsByName[name.toLowerCase()],
-        verified: await verify(resolver, name, 'click'),
+        formIndex,
+        formLabel,
+        verified: await verify(resolver, name, 'click', formIndex),
       });
     } else if (CLICK_ROLES.has(role)) {
       const isSubmit = formFieldEvidence.submitLabels.includes(name.toLowerCase());
-      buttons.push({ role, name, isSubmit, verified: await verify(resolver, name, 'click') });
+      buttons.push({
+        role,
+        name,
+        isSubmit,
+        formIndex,
+        formLabel,
+        verified: await verify(resolver, name, 'click', formIndex),
+      });
     } else if (FILL_ROLES.has(role)) {
-      inputs.push({ role, name, inputType, verified: await verify(resolver, name, 'fill') });
+      inputs.push({
+        role,
+        name,
+        inputType,
+        formIndex,
+        formLabel,
+        verified: await verify(resolver, name, 'fill', formIndex),
+      });
     } else if (SELECT_ROLES.has(role)) {
-      // Neither click nor fill fits a <select> — reported unverified, on purpose.
-      selects.push({ role, name, inputType });
+      selects.push({
+        role,
+        name,
+        inputType,
+        formIndex,
+        formLabel,
+        verified: await verify(resolver, name, 'select', formIndex),
+      });
     }
   }
 

@@ -179,6 +179,7 @@ async function loadOrDiscoverMap(
       // login form, and this application has a registered credential
       // profile, perform a real login and continue discovery from wherever
       // that lands — never a guessed URL, never skipping the login itself.
+      let loginPage: ApplicationMap['pages'][number] | undefined;
       if (!input.storageStatePath) {
         const credential = resolveDiscoveryCredential(input.application);
         if (credential) {
@@ -187,8 +188,11 @@ async function loadOrDiscoverMap(
             await probePage.goto(new URL(startPath, input.url).toString(), {
               waitUntil: 'domcontentloaded',
             });
-            const authenticatedPath = await establishAuthenticatedStart(probePage, credential);
-            if (authenticatedPath) startPath = authenticatedPath;
+            const authenticated = await establishAuthenticatedStart(probePage, credential);
+            if (authenticated) {
+              startPath = authenticated.path;
+              loginPage = authenticated.loginPage;
+            }
           } finally {
             await probePage.close();
           }
@@ -201,6 +205,17 @@ async function loadOrDiscoverMap(
         startPath,
         maxPages: input.maxPages ?? 15,
       });
+
+      // The BFS above resumes from the AUTHENTICATED start path — it never
+      // revisits the login page itself (nothing in the authenticated area
+      // typically links back to it), so without this a bare "Login as X"
+      // step (ui-mapper.ts's mapLogin inline-login fallback) would find no
+      // login-page-shaped entry in `map.pages` to resolve against for ANY
+      // application that needs authenticated discovery and has no custom
+      // fixtures/loginAsXxx helper of its own.
+      if (loginPage && !map.pages.some((p) => p.path === loginPage!.path)) {
+        map.pages.unshift(loginPage);
+      }
 
       if (!isMapUsable(map)) {
         // A transient/blocked crawl (bot-check, interstitial, rate-limit,

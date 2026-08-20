@@ -1,0 +1,294 @@
+{
+  "application": "storefront",
+  "baseUrl": "http://localhost:4300",
+  "generatedAt": "2026-08-19T14:24:24.427Z",
+  "pages": [
+    {
+      "path": "/",
+      "url": "http://localhost:4300/",
+      "title": "Storefront",
+      "pageName": "Storefront",
+      "headings": ["Storefront"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Search",
+          "isSubmit": true,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Search\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Search",
+          "href": "/",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Search\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Products",
+          "href": "/products.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Products\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Contact",
+          "href": "/contact.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Contact\" })"
+          }
+        }
+      ],
+      "inputs": [
+        {
+          "role": "searchbox",
+          "name": "Search",
+          "inputType": "search",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"searchbox\", { name: \"Search\" })"
+          }
+        }
+      ],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Storefront\" [level=1]\n- text: Search\n- searchbox \"Search\"\n- button \"Search\""
+    },
+    {
+      "path": "/products.html",
+      "url": "http://localhost:4300/products.html",
+      "title": "Products",
+      "pageName": "Products",
+      "headings": ["Products"],
+      "buttons": [],
+      "links": [
+        {
+          "role": "link",
+          "name": "Search",
+          "href": "/",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Search\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Products",
+          "href": "/products.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Products\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Contact",
+          "href": "/contact.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Contact\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Products\" [level=1]\n- text: Wireless Mouse Mechanical Keyboard USB-C Hub Laptop Stand"
+    },
+    {
+      "path": "/contact.html",
+      "url": "http://localhost:4300/contact.html",
+      "title": "Contact",
+      "pageName": "Contact",
+      "headings": ["Contact Us", "Sales", "Support"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Submit",
+          "isSubmit": true,
+          "formIndex": 0,
+          "formLabel": "Sales form",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "form[0] getByRole(\"button\", { name: \"Submit\" })"
+          }
+        },
+        {
+          "role": "button",
+          "name": "Submit",
+          "isSubmit": true,
+          "formIndex": 1,
+          "formLabel": "Support form",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "form[1] getByRole(\"button\", { name: \"Submit\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Search",
+          "href": "/",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Search\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Products",
+          "href": "/products.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Products\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Contact",
+          "href": "/contact.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Contact\" })"
+          }
+        }
+      ],
+      "inputs": [
+        {
+          "role": "textbox",
+          "name": "Name",
+          "inputType": "text",
+          "formIndex": 0,
+          "formLabel": "Sales form",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "form[0] getByRole(\"textbox\", { name: \"Name\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "Email",
+          "inputType": "email",
+          "formIndex": 0,
+          "formLabel": "Sales form",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "form[0] getByRole(\"textbox\", { name: \"Email\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "Message",
+          "inputType": "textarea",
+          "formIndex": 0,
+          "formLabel": "Sales form",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "form[0] getByRole(\"textbox\", { name: \"Message\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "Name",
+          "inputType": "text",
+          "formIndex": 1,
+          "formLabel": "Support form",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "form[1] getByRole(\"textbox\", { name: \"Name\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "Email",
+          "inputType": "email",
+          "formIndex": 1,
+          "formLabel": "Support form",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "form[1] getByRole(\"textbox\", { name: \"Email\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "Message",
+          "inputType": "textarea",
+          "formIndex": 1,
+          "formLabel": "Support form",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "form[1] getByRole(\"textbox\", { name: \"Message\" })"
+          }
+        }
+      ],
+      "selects": [],
+      "checkboxes": [
+        {
+          "role": "checkbox",
+          "name": "Subscribe to newsletter",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"checkbox\", { name: \"Subscribe to newsletter\" })"
+          }
+        }
+      ],
+      "tables": 0,
+      "forms": 2,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "alert",
+          "unique": true
+        },
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Contact Us\" [level=1]\n- form \"Sales form\":\n  - heading \"Sales\" [level=2]\n  - text: Name\n  - textbox \"Name\"\n  - text: Email\n  - textbox \"Email\"\n  - text: Message\n  - textbox \"Message\"\n  - checkbox \"Subscribe to newsletter\"\n  - text: Subscribe to newsletter\n  - button \"Submit\"\n- form \"Support form\":\n  - heading \"Support\" [level=2]\n  - text: Name\n  - textbox \"Name\"\n  - text: Email\n  - textbox \"Email\"\n  - text: Message\n  - textbox \"Message\"\n  - button \"Submit\"\n- status\n- alert"
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,7 @@
+{
+  "_note": "Fake, local-only reference-app credentials — not real secrets.",
+  "admin": {
+    "username": "admin",
+    "password": "Admin123!"
+  }
+}

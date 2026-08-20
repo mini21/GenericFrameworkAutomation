@@ -1,0 +1,191 @@
+{
+  "application": "adminpanel",
+  "baseUrl": "http://localhost:4200",
+  "generatedAt": "2026-08-19T14:22:02.455Z",
+  "pages": [
+    {
+      "path": "/login.html",
+      "url": "http://localhost:4200/login.html",
+      "title": "AdminPanel Login",
+      "pageName": "AdminPanel Login",
+      "headings": ["AdminPanel"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Log In",
+          "isSubmit": true,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Log In\" })"
+          }
+        }
+      ],
+      "links": [],
+      "inputs": [
+        {
+          "role": "textbox",
+          "name": "Username",
+          "inputType": "text",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"textbox\", { name: \"Username\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "Password",
+          "inputType": "password",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"textbox\", { name: \"Password\" })"
+          }
+        }
+      ],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 0,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "alert",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- heading \"AdminPanel\" [level=1]\n- text: Username\n- textbox \"Username\"\n- text: Password\n- textbox \"Password\"\n- button \"Log In\"\n- alert"
+    },
+    {
+      "path": "/dashboard.html",
+      "url": "http://localhost:4200/dashboard.html",
+      "title": "Dashboard",
+      "pageName": "Dashboard",
+      "headings": ["Dashboard"],
+      "buttons": [],
+      "links": [
+        {
+          "role": "link",
+          "name": "Users",
+          "href": "/users.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Users\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- heading \"Dashboard\" [level=1]\n- navigation:\n  - link \"Users\":\n    - /url: /users.html"
+    },
+    {
+      "path": "/users.html",
+      "url": "http://localhost:4200/users.html",
+      "title": "Users",
+      "pageName": "Users",
+      "headings": ["Users"],
+      "buttons": [],
+      "links": [
+        {
+          "role": "link",
+          "name": "Add User",
+          "href": "/users/create.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Add User\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 0,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- heading \"Users\" [level=1]\n- list:\n  - listitem: Alex Admin (alex@example.com) — Admin\n- link \"Add User\":\n  - /url: /users/create.html"
+    },
+    {
+      "path": "/users/create.html",
+      "url": "http://localhost:4200/users/create.html",
+      "title": "Create User",
+      "pageName": "Create User",
+      "headings": ["Create User"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Submit",
+          "isSubmit": true,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Submit\" })"
+          }
+        }
+      ],
+      "links": [],
+      "inputs": [
+        {
+          "role": "textbox",
+          "name": "Name",
+          "inputType": "text",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"textbox\", { name: \"Name\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "Email",
+          "inputType": "email",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"textbox\", { name: \"Email\" })"
+          }
+        }
+      ],
+      "selects": [
+        {
+          "role": "combobox",
+          "name": "Role",
+          "inputType": "select",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"combobox\", { name: \"Role\" })"
+          }
+        }
+      ],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 0,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "alert",
+          "unique": true
+        },
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- heading \"Create User\" [level=1]\n- text: Name\n- textbox \"Name\"\n- text: Email\n- textbox \"Email\"\n- text: Role\n- combobox \"Role\":\n  - option \"Admin\" [selected]\n  - option \"Editor\"\n  - option \"Viewer\"\n- button \"Submit\"\n- status\n- alert"
+    }
+  ],
+  "errors": []
+}

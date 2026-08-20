@@ -34,8 +34,20 @@ function findLoginHelper(
   return undefined;
 }
 
+// Derives a data-profile key straight from the login step's own wording —
+// "Login as admin" -> "admin", "Login as manager" -> "manager", "Login as
+// an employee" -> "employee" (a leading article is generic English noise,
+// not part of the role name) — instead of a fixed employee/manager
+// vocabulary. Any application's own data/<profile>.json simply names its
+// profiles however its own login step's wording does; this never needs a
+// framework change to support a new role name for a new application (e.g.
+// "Login as admin" for an admin panel, "Login as customer" for a shop).
+// Falls back to "default" only when a login step somehow carries no target
+// at all (LOGIN_PATTERN always captures one in practice).
 function profileKeyFor(target: string | undefined): string {
-  return target && /manager/i.test(target) ? 'manager' : 'employee';
+  const withoutArticle = (target ?? '').trim().replace(/^(a|an|the)\s+/i, '');
+  const firstWord = withoutArticle.split(/\s+/)[0];
+  return firstWord ? firstWord.toLowerCase() : 'default';
 }
 
 function mapLogin(application: string, step: RawStep, map: ApplicationMap): StepMapping {
@@ -452,15 +464,31 @@ function matchConfidenceFor(score: number): 'High' | 'Medium' | 'Low' {
 function toCandidates<T>(
   ranked: ScoredCandidate<T>[],
   labelOf: (item: T) => string,
-  contextOf?: (
-    item: T,
-  ) => { pageName: string; pageUrl: string; samePage?: boolean; elementType?: string } | undefined,
+  contextOf?: (item: T) =>
+    | {
+        pageName: string;
+        pageUrl: string;
+        samePage?: boolean;
+        elementType?: string;
+        formLabel?: string;
+      }
+    | undefined,
+  /**
+   * The token re-parsed back into `step.target` when a human picks this
+   * candidate — defaults to the same display label, but a form-scoped
+   * element (see FORM_PIN_PATTERN below) needs `value` to also carry WHICH
+   * form, since two candidates can otherwise share the exact same label
+   * ("Submit" in the Employee form vs "Submit" in the Manager form) and a
+   * plain-name re-parse could never tell the human's two possible answers
+   * apart.
+   */
+  valueOf?: (item: T) => string,
 ): MappingCandidate[] {
   return ranked.slice(0, MAX_DISPLAYED_CANDIDATES).map((c) => {
     const ctx = contextOf?.(c.item);
     return {
       label: labelOf(c.item),
-      value: labelOf(c.item),
+      value: (valueOf ?? labelOf)(c.item),
       score: c.score,
       reasons: c.reasons,
       selected: false,
@@ -468,6 +496,7 @@ function toCandidates<T>(
       pageName: ctx?.pageName,
       pageUrl: ctx?.pageUrl,
       elementType: ctx?.elementType,
+      formLabel: ctx?.formLabel,
       relationship:
         ctx?.samePage === undefined
           ? undefined
@@ -481,6 +510,7 @@ function toCandidates<T>(
 /** Plain-English element kind for an ARIA role — never technical jargon in a UI-facing string. */
 function humanElementType(role: string): string {
   if (role === 'textbox' || role === 'searchbox' || role === 'spinbutton') return 'input';
+  if (role === 'combobox' || role === 'listbox') return 'dropdown';
   if (role === 'checkbox' || role === 'radio') return role;
   if (role === 'link') return 'link';
   if (role === 'button') return 'button';
@@ -593,6 +623,29 @@ interface ElementCandidate {
   page: PageMap;
 }
 
+// A form-scoped candidate's re-parse token (see toCandidates' `valueOf`
+// above), built around a NUL character — a control character that can
+// never appear in a real accessible name, so this separator is always
+// unambiguous. Lets a human's disambiguation answer pin down not just a
+// NAME ("Submit") but WHICH of several same-named form-scoped controls —
+// see scoreElements below, which turns a pinned target into an exact,
+// unambiguous match instead of re-running the same tied scoring that
+// produced the ambiguity in the first place.
+const FORM_PIN_SEPARATOR = '\u0000form:';
+
+function encodeFormPin(name: string, formIndex: number | undefined): string {
+  return formIndex !== undefined ? `${name}${FORM_PIN_SEPARATOR}${formIndex}` : name;
+}
+
+function decodeFormPin(target: string): { name: string; formIndex?: number } {
+  const idx = target.indexOf(FORM_PIN_SEPARATOR);
+  if (idx === -1) return { name: target };
+  return {
+    name: target.slice(0, idx),
+    formIndex: Number(target.slice(idx + FORM_PIN_SEPARATOR.length)),
+  };
+}
+
 // STAGE 1 — action-capability filtering, done before ANY scoring: a fill
 // step can only ever be matched against genuinely fillable controls
 // (inputs — role textbox/searchbox/spinbutton, see page-crawler.ts's
@@ -601,12 +654,17 @@ interface ElementCandidate {
 // candidates for a fill target, so a same-named button can't win a fill
 // resolution by score — it's structurally never in the running.
 function elementPool(step: RawStep, pages: PageMap[]): ElementCandidate[] {
-  return pages.flatMap((page) =>
-    (step.action === 'fill' ? page.inputs : [...page.buttons, ...page.links]).map((element) => ({
-      element,
-      page,
-    })),
-  );
+  return pages.flatMap((page) => {
+    const source =
+      step.action === 'fill'
+        ? page.inputs
+        : step.action === 'select'
+          ? page.selects
+          : step.action === 'check'
+            ? page.checkboxes
+            : [...page.buttons, ...page.links];
+    return source.map((element) => ({ element, page }));
+  });
 }
 
 /** Matches the size of the other contextual bonus already in this file (findNavigationEvidence's `30 +`). */
@@ -625,13 +683,32 @@ function scoreElements(
   startPage: PageMap | undefined,
 ): ScoredCandidate<ElementCandidate>[] {
   const isSubmitMarker = step.action === 'click' && step.target === 'submit';
-  const target = isSubmitMarker ? undefined : step.target;
+  const pinned = !isSubmitMarker && step.target ? decodeFormPin(step.target) : undefined;
+  const target = isSubmitMarker ? undefined : pinned?.name;
   const results: ScoredCandidate<ElementCandidate>[] = [];
 
   for (const candidate of pool) {
     const el = candidate.element;
     let score = 0;
     const reasons: string[] = [];
+
+    // A human's earlier disambiguation choice, re-parsed back in — pins
+    // not just a name but WHICH form-scoped occurrence, so this is an
+    // exact, deterministic match, never re-scored against its own sibling
+    // candidates (which share the identical name and would otherwise tie
+    // again — see FORM_PIN_SEPARATOR above for why this is necessary).
+    if (pinned?.formIndex !== undefined) {
+      if (el.name === pinned.name && el.formIndex === pinned.formIndex) {
+        results.push({
+          item: candidate,
+          score: 1000,
+          reasons: [
+            `the confirmed choice — "${el.name}" in the "${el.formLabel ?? `form ${el.formIndex + 1}`}" form`,
+          ],
+        });
+      }
+      continue;
+    }
 
     if (isSubmitMarker) {
       if (el.isSubmit) {
@@ -682,6 +759,20 @@ function scoreElements(
 interface ElementOutcome {
   mapping: StepMapping;
   chosenPage?: PageMap;
+  /**
+   * Set only when the resolved element is a real navigation link (role
+   * "link", a captured `href`) — the pathname it points to. A click on a
+   * LINK is a real page transition, unlike a click on a button (which
+   * typically acts in place, e.g. a form submit) — see the main loop in
+   * mapRequirementToUI, which resolves this against `map.pages` to correct
+   * `currentPage` to the link's actual DESTINATION, not merely the page
+   * the link itself was found on. Without this, "Click Add User" (a plain
+   * navigational link) would leave subsequent fill/select steps scoped to
+   * the ORIGIN page instead of the page the click actually lands on — a
+   * generic bug that hits any workflow reaching a new page via an
+   * ordinary link click rather than an explicit "Open X" sentence.
+   */
+  linkHref?: string;
 }
 
 function finalizeElement(
@@ -689,7 +780,14 @@ function finalizeElement(
   scored: ScoredCandidate<ElementCandidate>[],
   contextPage: PageMap | undefined,
 ): ElementOutcome {
-  const actionLabel = step.action === 'fill' ? 'fillable' : 'clickable';
+  const actionLabel =
+    step.action === 'fill'
+      ? 'fillable'
+      : step.action === 'select'
+        ? 'selectable'
+        : step.action === 'check'
+          ? 'checkable'
+          : 'clickable';
   const targetLabel =
     step.action === 'click' && step.target === 'submit' ? 'a submit control' : `"${step.target}"`;
   const ranked = rankCandidates(scored);
@@ -701,7 +799,9 @@ function finalizeElement(
       pageUrl: c.page.url,
       samePage: contextPage ? c.page === contextPage : undefined,
       elementType: humanElementType(c.element.role),
+      formLabel: c.element.formLabel,
     }),
+    (c) => encodeFormPin(c.element.name, c.element.formIndex),
   );
 
   if (ranked.length === 0) {
@@ -753,24 +853,39 @@ function finalizeElement(
   }
 
   diagnostics[0].selected = true;
+  const kind =
+    step.action === 'fill'
+      ? 'fill'
+      : step.action === 'select'
+        ? 'select'
+        : step.action === 'check'
+          ? 'check'
+          : 'click';
+  const description =
+    step.action === 'fill'
+      ? `ui.fill('${el.name}', ${describeValue(step.value)})`
+      : step.action === 'select'
+        ? `ui.selectOption('${el.name}', ${describeValue(step.value)})`
+        : step.action === 'check'
+          ? `ui.check('${el.name}')`
+          : `ui.click('${el.name}')`;
   return {
     mapping: {
       step,
       confidence: 'HIGH',
       resolved: {
-        kind: step.action === 'fill' ? 'fill' : 'click',
-        description:
-          step.action === 'fill'
-            ? `ui.fill('${el.name}', ${describeValue(step.value)})`
-            : `ui.click('${el.name}')`,
+        kind,
+        description,
         strategy: verified.strategy,
         confidence: verified.confidence,
         resolvedLocator: verified.resolvedLocator,
         detail: el.name,
+        formIndex: el.formIndex,
       },
       diagnostics,
     },
     chosenPage: top.item.page,
+    linkHref: el.role === 'link' ? el.href : undefined,
   };
 }
 
@@ -849,7 +964,17 @@ export function mapRequirementToUI(
 
     const outcome = finalizeElement(step, scored, currentPage);
     mappings.push(outcome.mapping);
-    if (outcome.chosenPage) currentPage = outcome.chosenPage;
+    // A click on a real navigation LINK is a genuine page transition — the
+    // context a NEXT step should inherit is the link's DESTINATION, not
+    // merely the page the link itself lived on (see ElementOutcome.linkHref
+    // above). Falls back to the origin page when the href doesn't match
+    // any discovered page (e.g. an external link, or a page discovery
+    // never reached) — never a guess, just no context change in that case.
+    const destinationPage = outcome.linkHref
+      ? map.pages.find((p) => p.path === outcome.linkHref)
+      : undefined;
+    if (destinationPage) currentPage = destinationPage;
+    else if (outcome.chosenPage) currentPage = outcome.chosenPage;
   }
 
   return mappings;

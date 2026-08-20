@@ -1,16 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(claude mcp *)",
-      "Bash(npm -v)",
-      "Bash(git --version)",
-      "Bash(npx prettier *)",
-      "Bash(npx tsc *)",
-      "Bash(node /home/dell/.claude/jobs/63ed0cd1/tmp/verify.js)",
-      "Bash(npx playwright *)",
-      "Bash(npx eslint *)",
-      "Skill(fewer-permission-prompts)",
-      "Bash(python3 *)"
+      "Bash(git merge *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npm run *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)",
+      "Bash(git ls-remote *)",
+      "Bash(git stash *)",
+      "Bash(npx playwright *)"
     ]
   }
 }

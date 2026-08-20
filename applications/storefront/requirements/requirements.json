@@ -1,0 +1,10 @@
+{
+  "requirements": {
+    "SEARCH-001": {
+      "name": "User should be able to search for a product",
+      "priority": "Medium",
+      "feature": "Search",
+      "tests": ["storefront.search.generated.1"]
+    }
+  }
+}

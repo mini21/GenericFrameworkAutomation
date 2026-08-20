@@ -1,7 +1,7 @@
 import { TestType } from '../execution/execution-manifest';
 import { Confidence, LocatorStrategy } from '../locator/locator-types';
 
-export type StepAction = 'login' | 'navigate' | 'fill' | 'click' | 'verify';
+export type StepAction = 'login' | 'navigate' | 'fill' | 'click' | 'select' | 'check' | 'verify';
 
 /** One step as literally parsed from the requirement text, before UI mapping. */
 export interface RawStep {
@@ -23,7 +23,16 @@ export interface ResolvedStep {
    * "Verify confirmation", so a UI requirement's oracle always stays the
    * UI's own observable result, never an unrelated network status.
    */
-  kind: 'login-helper' | 'login-inline' | 'navigate' | 'click' | 'fill' | 'verify' | 'verify-api';
+  kind:
+    | 'login-helper'
+    | 'login-inline'
+    | 'navigate'
+    | 'click'
+    | 'fill'
+    | 'select'
+    | 'check'
+    | 'verify'
+    | 'verify-api';
   description: string;
   /** Present when this step resolved to a specific discovered element re-verified via LocatorResolver. */
   strategy?: LocatorStrategy;
@@ -31,6 +40,8 @@ export interface ResolvedStep {
   resolvedLocator?: string;
   /** Path to navigate to (`navigate`), the fill/verify value (verbatim or a `{{date:*}}` marker), or the expected HTTP status code (`verify-api`) — see code-generator.ts. */
   detail?: string;
+  /** Present only when this element lives in one of several forms on its page — see DiscoveredElement.formIndex. code-generator.ts emits a form-scoped LocatorIntent when set, instead of a plain name string. */
+  formIndex?: number;
 }
 
 /** One scored candidate considered for a step — kept for BOTH the ambiguous-confirmation prompt and diagnostic mode, whether or not it was ultimately chosen. */
@@ -56,6 +67,18 @@ export interface MappingCandidate {
   matchConfidence?: 'High' | 'Medium' | 'Low';
   /** Plain-English element kind (e.g. "input", "button", "link") — present only for element (fill/click) candidates, so a Manual QA (or anyone reviewing an ambiguity card) can tell what's actually being offered without needing to know ARIA role vocabulary. */
   elementType?: string;
+  /**
+   * The nearest enclosing <form>'s own generic identity (aria-label, legend,
+   * name attribute, or a preceding heading — see page-crawler.ts's
+   * collectFormLabels), when this candidate's page has more than one form.
+   * The concrete fix for "two forms on the same page with an identically
+   * named Submit button": without this, both candidates render as visually
+   * identical entries; with it, a disambiguation card can say "Employee
+   * form" vs "Manager form" — a genuine business distinction — instead of
+   * asking a Manual QA a technical locator question. Undefined whenever a
+   * page has zero or one form, or the element isn't form-associated at all.
+   */
+  formLabel?: string;
 }
 
 export interface StepMapping {

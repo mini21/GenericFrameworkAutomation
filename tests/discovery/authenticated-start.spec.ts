@@ -144,11 +144,19 @@ test.describe(`Application Discovery — authenticated start ${TAGS.SMOKE}`, () 
   test('authenticated discovery can discover additional same-origin pages', async ({ context }) => {
     const page = await context.newPage();
     await page.goto(`${baseUrl}/login`);
-    const landedPath = await establishAuthenticatedStart(page, {
+    const authenticated = await establishAuthenticatedStart(page, {
       username: VALID_USERNAME,
       password: VALID_PASSWORD,
     });
-    expect(landedPath).toBe('/dashboard');
+    expect(authenticated?.path).toBe('/dashboard');
+    // The login page's own map is captured too — see loginPage's doc
+    // comment: the BFS that resumes from the authenticated path never
+    // revisits it, so a caller needs it returned explicitly.
+    expect(authenticated?.loginPage.path).toBe('/login');
+    expect(authenticated?.loginPage.inputs.map((i) => i.name).sort()).toEqual([
+      'Password',
+      'Username',
+    ]);
     await page.close();
 
     // Continue with the EXISTING, unmodified crawler from the authenticated
@@ -157,7 +165,7 @@ test.describe(`Application Discovery — authenticated start ${TAGS.SMOKE}`, () 
     const map = await crawlApplication(context, {
       application: 'fixture-app',
       baseUrl,
-      startPath: landedPath as string,
+      startPath: authenticated!.path,
       maxPages: 15,
     });
 
@@ -169,7 +177,7 @@ test.describe(`Application Discovery — authenticated start ${TAGS.SMOKE}`, () 
   test('no credential appears anywhere in the resulting ApplicationMap', async ({ context }) => {
     const page = await context.newPage();
     await page.goto(`${baseUrl}/login`);
-    const landedPath = await establishAuthenticatedStart(page, {
+    const authenticated = await establishAuthenticatedStart(page, {
       username: VALID_USERNAME,
       password: VALID_PASSWORD,
     });
@@ -178,7 +186,7 @@ test.describe(`Application Discovery — authenticated start ${TAGS.SMOKE}`, () 
     const map = await crawlApplication(context, {
       application: 'fixture-app',
       baseUrl,
-      startPath: landedPath as string,
+      startPath: authenticated!.path,
       maxPages: 15,
     });
 

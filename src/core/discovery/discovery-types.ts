@@ -16,6 +16,18 @@ export interface DiscoveredElement {
   isSubmit?: boolean;
   /** For `role: "link"` only — the link's `href`, resolved to a pathname (e.g. "/apply-leave.html"). Real navigation evidence: which page this element actually goes to, as opposed to text that merely mentions a page's name. */
   href?: string;
+  /**
+   * The nearest enclosing <form>'s own generic identity — its aria-label,
+   * <legend>, name attribute, or nearest preceding heading, in that order —
+   * captured ONLY when a page has more than one form (see page-crawler.ts's
+   * collectFormLabels). A page with zero or one form never sets this: form
+   * identity is only meaningful evidence once there's more than one form to
+   * distinguish between. Never a guessed/invented label — absent when a
+   * multi-form page's own form genuinely carries none of those signals.
+   */
+  formLabel?: string;
+  /** Which `<form>` (0-based, document order) this element lives in — set alongside `formLabel`, and the value a resolved step's runtime locator scopes to (see LocatorIntent.scope). */
+  formIndex?: number;
   verified?: {
     strategy: LocatorStrategy;
     confidence: Confidence;

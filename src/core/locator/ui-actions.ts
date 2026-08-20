@@ -3,7 +3,7 @@ import { LocatorResolver } from './locator-resolver';
 import { LocatorIntent, LocatorResolution, LocatorResolutionError } from './locator-types';
 import { logger } from '../logger/logger';
 
-type Action = 'click' | 'fill';
+type Action = 'click' | 'fill' | 'select';
 
 /**
  * QA-facing Locator Intelligence API: `ui.click('Login')`,
@@ -29,6 +29,24 @@ export class UiActions {
   async fill(target: string | LocatorIntent, value: string): Promise<void> {
     const { locator } = await this.resolveAndReport(target, 'fill');
     await locator.fill(value);
+  }
+
+  async selectOption(target: string | LocatorIntent, value: string): Promise<void> {
+    const { locator } = await this.resolveAndReport(target, 'select');
+    await locator.selectOption(value);
+  }
+
+  /**
+   * Ensures a checkbox/radio ends up checked — deliberately `.check()`, not
+   * `.click()`: click toggles (wrong if the box is already checked), while
+   * check() is idempotent and matches the actual business intent of a
+   * "Check X" step. Resolves via the EXISTING 'click' capability/role chain
+   * (checkbox/radio are already in CLICK_ROLES) — no separate discovery or
+   * resolution path needed for this action.
+   */
+  async check(target: string | LocatorIntent): Promise<void> {
+    const { locator } = await this.resolveAndReport(target, 'click');
+    await locator.check();
   }
 
   /** Resolves without acting — for callers who need the Locator itself (check, selectOption, assertions, ...). */

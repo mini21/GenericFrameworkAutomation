@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Create User</title>
+  </head>
+  <body>
+    <h1>Create User</h1>
+    <form id="create-user-form">
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" required />
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required />
+
+      <label for="role">Role</label>
+      <select id="role" name="role">
+        <option value="Admin">Admin</option>
+        <option value="Editor">Editor</option>
+        <option value="Viewer">Viewer</option>
+      </select>
+
+      <button type="submit">Submit</button>
+    </form>
+    <p id="status-message" role="status"></p>
+    <p id="error-message" role="alert"></p>
+
+    <script>
+      document.getElementById('create-user-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('name').value;
+        const email = document.getElementById('email').value;
+        const role = document.getElementById('role').value;
+        const res = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, role }),
+        });
+        if (res.ok) {
+          document.getElementById('status-message').textContent = 'User created successfully';
+        } else {
+          const data = await res.json();
+          document.getElementById('error-message').textContent =
+            data.error || 'Could not create user';
+        }
+      });
+    </script>
+  </body>
+</html>

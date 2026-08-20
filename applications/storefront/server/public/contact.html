@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Contact</title>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Search</a>
+      <a href="/products.html">Products</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+    <h1>Contact Us</h1>
+
+    <form id="sales-form" aria-label="Sales form">
+      <h2>Sales</h2>
+      <label for="sales-name">Name</label>
+      <input id="sales-name" name="name" type="text" required />
+      <label for="sales-email">Email</label>
+      <input id="sales-email" name="email" type="email" required />
+      <label for="sales-message">Message</label>
+      <textarea id="sales-message" name="message" required></textarea>
+      <label>
+        <input id="sales-subscribe" type="checkbox" aria-label="Subscribe to newsletter" />
+        Subscribe to newsletter
+      </label>
+      <button type="submit">Submit</button>
+    </form>
+
+    <form id="support-form" aria-label="Support form">
+      <h2>Support</h2>
+      <label for="support-name">Name</label>
+      <input id="support-name" name="name" type="text" required />
+      <label for="support-email">Email</label>
+      <input id="support-email" name="email" type="email" required />
+      <label for="support-message">Message</label>
+      <textarea id="support-message" name="message" required></textarea>
+      <button type="submit">Submit</button>
+    </form>
+
+    <p id="status-message" role="status"></p>
+    <p id="error-message" role="alert"></p>
+
+    <script>
+      async function submitForm(form) {
+        const name = form.querySelector('[name="name"]').value;
+        const email = form.querySelector('[name="email"]').value;
+        const message = form.querySelector('[name="message"]').value;
+        const res = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, message }),
+        });
+        if (res.ok) {
+          document.getElementById('status-message').textContent = 'Message sent';
+        } else {
+          const data = await res.json();
+          document.getElementById('error-message').textContent =
+            data.error || 'Message could not be sent';
+        }
+      }
+      document.getElementById('sales-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitForm(e.target);
+      });
+      document.getElementById('support-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitForm(e.target);
+      });
+    </script>
+  </body>
+</html>

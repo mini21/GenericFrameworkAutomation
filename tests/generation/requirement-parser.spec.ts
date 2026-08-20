@@ -65,11 +65,11 @@ test.describe(`Generation — requirement parser ${TAGS.SMOKE}`, () => {
     expect(steps.map((s) => s.action)).toEqual(['login', 'click']);
   });
 
-  test('select "value" for field is recognized with value/target swapped correctly', () => {
+  test('select "value" for field is recognized with value/target swapped correctly, as a distinct SELECT action (not fill — a <select> is never fillable)', () => {
     const { steps } = parseRequirement('Select "Casual Leave" for Leave Type.');
     expect(steps).toEqual([
       {
-        action: 'fill',
+        action: 'select',
         target: 'Leave Type',
         value: 'Casual Leave',
         raw: 'Select "Casual Leave" for Leave Type',

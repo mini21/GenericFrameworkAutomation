@@ -1,0 +1,10 @@
+{
+  "requirements": {
+    "USERS-001": {
+      "name": "Admin should be able to create a new user",
+      "priority": "Medium",
+      "feature": "Users",
+      "tests": ["adminpanel.users.generated.1"]
+    }
+  }
+}

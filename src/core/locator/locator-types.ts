@@ -25,6 +25,18 @@ export interface LocatorIntent {
   primary?: { testId?: string; css?: string; xpath?: string };
   /** Optional explicit CSS/XPath appended to the end of the semantic chain. */
   fallback?: { css?: string; xpath?: string };
+  /**
+   * Restricts the ENTIRE resolution chain (primary + role/label/placeholder/
+   * text/testId/css/xpath) to descendants of the Nth `<form>` on the page —
+   * the generic fix for two forms that legitimately share an identically-
+   * named control (e.g. two "Submit" buttons, one per form): resolving by
+   * name alone is genuinely ambiguous there, but scoping to "the form a
+   * human confirmed" resolves it deterministically. A purely generic DOM
+   * concept (form position), never form-specific naming/business logic —
+   * see page-crawler.ts's collectFormContext for how `formIndex` is
+   * discovered.
+   */
+  scope?: { formIndex: number };
 }
 
 export interface LocatorResolution {

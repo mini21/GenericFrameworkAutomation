@@ -3,7 +3,14 @@
 // below is a fetch() call into an endpoint that runs the SAME
 // discovery/generation/execution/coverage code the CLI already uses.
 
-const PHASE_ORDER = ['connecting', 'discovering', 'mapping', 'understanding', 'generating', 'validating'];
+const PHASE_ORDER = [
+  'connecting',
+  'discovering',
+  'mapping',
+  'understanding',
+  'generating',
+  'validating',
+];
 const PHASE_LABELS = {
   connecting: 'Connecting to application',
   discovering: 'Discovering application',
@@ -309,10 +316,14 @@ function handleLiveEvent(e) {
       step.status = e.status === 'passed' ? 'passed' : 'failed';
       step.durationMs = e.durationMs ?? null;
       step.error = e.error || null;
-      step.screenshotUrl = e.screenshotPath ? `/api/jobs/${state.jobId}/screenshots/${e.stepIndex}` : null;
+      step.screenshotUrl = e.screenshotPath
+        ? `/api/jobs/${state.jobId}/screenshots/${e.stepIndex}`
+        : null;
     }
     const verb = e.status === 'passed' ? '✓ Done' : '✕ Failed';
-    logActivity(`${verb}: ${e.stepDescription || ''}${e.durationMs != null ? ` (${formatDuration(e.durationMs)})` : ''}`);
+    logActivity(
+      `${verb}: ${e.stepDescription || ''}${e.durationMs != null ? ` (${formatDuration(e.durationMs)})` : ''}`,
+    );
     return;
   }
   if (e.type === 'TEST_CANCELLED' || e.type === 'RUN_CANCELLED') {
@@ -324,7 +335,12 @@ function handleLiveEvent(e) {
       if (s.status === 'running') s.status = 'skipped';
     });
     state.execStatus = 'cancelled';
-    state.execResult = { passed: false, total: 1, passedCount: 0, durationMs: Date.now() - (state.execStartedAt || Date.now()) };
+    state.execResult = {
+      passed: false,
+      total: 1,
+      passedCount: 0,
+      durationMs: Date.now() - (state.execStartedAt || Date.now()),
+    };
     state.screen = 'result';
     logActivity('Test cancelled');
   }
@@ -339,7 +355,12 @@ function renderProgress() {
   const latest = state.phaseLog.length ? state.phaseLog[state.phaseLog.length - 1].phase : null;
 
   const items = PHASE_ORDER.map((phase) => {
-    const cls = state.outcome || reached.has(phase) ? (phase === latest && !state.outcome ? 'active' : 'done') : '';
+    const cls =
+      state.outcome || reached.has(phase)
+        ? phase === latest && !state.outcome
+          ? 'active'
+          : 'done'
+        : '';
     const entry = state.phaseLog.find((p) => p.phase === phase);
     const mark = cls === 'done' ? '✓' : cls === 'active' ? '…' : '';
     return `<li class="${cls}"><span class="mark">${mark}</span> ${PHASE_LABELS[phase]}${entry?.detail ? ` <span class="detail">— ${esc(entry.detail)}</span>` : ''}</li>`;
@@ -376,6 +397,9 @@ function renderCandidateCard(c, index) {
       : '',
     c.pageName ? `<div class="candidate-ctx"><strong>Page:</strong> ${esc(c.pageName)}</div>` : '',
     c.pageUrl ? `<div class="candidate-ctx"><strong>URL:</strong> ${esc(c.pageUrl)}</div>` : '',
+    c.formLabel
+      ? `<div class="candidate-ctx"><strong>Form:</strong> ${esc(c.formLabel)}</div>`
+      : '',
     c.relationship
       ? `<div class="candidate-ctx"><strong>Relationship:</strong> ${esc(c.relationship)}</div>`
       : '',
@@ -413,7 +437,9 @@ function renderQuestionCard(question) {
         answerQuestion(question.questionId, candidate.value);
       });
     });
-    document.getElementById('q-skip').addEventListener('click', () => answerQuestion(question.questionId, ''));
+    document
+      .getElementById('q-skip')
+      .addEventListener('click', () => answerQuestion(question.questionId, ''));
   } else {
     slot.innerHTML = `
       <div class="question-card">
@@ -520,6 +546,7 @@ function renderStepDiagnostic(m, i) {
   const summaryLines = [
     winner?.elementType ? `<strong>Element:</strong> ${esc(winner.elementType)}` : '',
     winner?.pageName ? `<strong>Page:</strong> ${esc(winner.pageName)}` : '',
+    winner?.formLabel ? `<strong>Form:</strong> ${esc(winner.formLabel)}` : '',
     `<strong>Confidence:</strong> ${esc(winner?.matchConfidence || 'High')}`,
   ]
     .filter(Boolean)
@@ -552,7 +579,8 @@ function renderReview() {
       <ol class="step-list">
         ${spec.steps
           .map(
-            (m, i) => `<li><span class="step-num">${i + 1}</span>${esc(describeStep(m))} ${confidenceBadge(m)}</li>`,
+            (m, i) =>
+              `<li><span class="step-num">${i + 1}</span>${esc(describeStep(m))} ${confidenceBadge(m)}</li>`,
           )
           .join('')}
       </ol>
@@ -666,7 +694,10 @@ function renderExecuting() {
 }
 
 function renderStepRow(step) {
-  const durationText = step.durationMs != null ? ` <span class="step-duration">${formatDuration(step.durationMs)}</span>` : '';
+  const durationText =
+    step.durationMs != null
+      ? ` <span class="step-duration">${formatDuration(step.durationMs)}</span>`
+      : '';
   const shotBtn = step.screenshotUrl
     ? `<button class="step-shot-btn" data-url="${step.screenshotUrl}">[Screenshot]</button>`
     : '';
@@ -733,7 +764,10 @@ function renderResult() {
       <div id="shots-gallery" class="shots-gallery" hidden>
         ${state.steps
           .filter((s) => s.screenshotUrl)
-          .map((s) => `<img src="${s.screenshotUrl}" data-url="${s.screenshotUrl}" alt="${esc(s.description)}" title="${esc(s.description)}" />`)
+          .map(
+            (s) =>
+              `<img src="${s.screenshotUrl}" data-url="${s.screenshotUrl}" alt="${esc(s.description)}" title="${esc(s.description)}" />`,
+          )
           .join('')}
       </div>
       <details id="tech-details-panel" style="margin-top:16px" hidden>
@@ -743,7 +777,9 @@ function renderResult() {
     </div>
   `;
 
-  document.getElementById('btn-view-shot')?.addEventListener('click', () => openLightbox(failingStep.screenshotUrl));
+  document
+    .getElementById('btn-view-shot')
+    ?.addEventListener('click', () => openLightbox(failingStep.screenshotUrl));
   document.getElementById('btn-view-shots')?.addEventListener('click', () => {
     const gallery = document.getElementById('shots-gallery');
     gallery.hidden = !gallery.hidden;
@@ -762,10 +798,12 @@ function renderResult() {
           const stepDetail = failingStep
             ? `Failing step: ${failingStep.description}\n\n${failingStep.error || ''}\n\n`
             : '';
-          document.getElementById('tech-details-content').textContent = stepDetail + (data.output || '(no output captured)');
+          document.getElementById('tech-details-content').textContent =
+            stepDetail + (data.output || '(no output captured)');
         })
         .catch(() => {
-          document.getElementById('tech-details-content').textContent = 'Could not load technical details.';
+          document.getElementById('tech-details-content').textContent =
+            'Could not load technical details.';
         });
     }
   });
@@ -882,12 +920,16 @@ async function toggleAppTests(appId) {
           )
           .join('');
   panel.querySelectorAll('.btn-run-existing').forEach((btn) => {
-    btn.addEventListener('click', () => runExistingTest(btn.dataset.app, btn.dataset.test, btn.dataset.req));
+    btn.addEventListener('click', () =>
+      runExistingTest(btn.dataset.app, btn.dataset.test, btn.dataset.req),
+    );
   });
 }
 
 async function runExistingTest(application, stableTestId, requirementText) {
-  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === 'home'));
+  document
+    .querySelectorAll('.tab-btn')
+    .forEach((b) => b.classList.toggle('active', b.dataset.tab === 'home'));
   state.tab = 'home';
   resetJobState();
   state.outcome = { spec: { requirementText } };

@@ -19,6 +19,25 @@
       "defaultBrowser": "chromium",
       "supportedBrowsers": ["chromium"],
       "dataProfiles": ["qa-default"]
+    },
+    "adminpanel": {
+      "name": "AdminPanel",
+      "baseUrl": "http://localhost:4200",
+      "modules": [],
+      "authProfiles": ["admin"],
+      "defaultBrowser": "chromium",
+      "supportedBrowsers": ["chromium"],
+      "dataProfiles": ["qa-default"],
+      "startPath": "/login.html"
+    },
+    "storefront": {
+      "name": "Storefront",
+      "baseUrl": "http://localhost:4300",
+      "modules": [],
+      "authProfiles": [],
+      "defaultBrowser": "chromium",
+      "supportedBrowsers": ["chromium"],
+      "dataProfiles": ["qa-default"]
     }
   }
 }
