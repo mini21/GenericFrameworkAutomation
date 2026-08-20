@@ -1,0 +1,586 @@
+{
+  "application": "library",
+  "baseUrl": "http://localhost:4400",
+  "generatedAt": "2026-08-20T12:20:15.733Z",
+  "pages": [
+    {
+      "path": "/catalog.html",
+      "url": "http://localhost:4400/catalog.html",
+      "title": "Catalog",
+      "pageName": "Catalog",
+      "headings": ["Library Catalog"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Search",
+          "isSubmit": true,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Search\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Login",
+          "href": "/login.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Login\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Catalog",
+          "href": "/catalog.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Catalog\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Books",
+          "href": "/books.html",
+          "verified": {
+            "strategy": "text",
+            "confidence": "MEDIUM",
+            "resolvedLocator": "getByText(\"Books\", { exact: true })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "My Books",
+          "href": "/my-books.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"My Books\" })"
+          }
+        }
+      ],
+      "inputs": [
+        {
+          "role": "searchbox",
+          "name": "Search",
+          "inputType": "search",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"searchbox\", { name: \"Search\" })"
+          }
+        }
+      ],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- navigation:\n  - link \"Login\":\n    - /url: /login.html\n  - link \"Catalog\":\n    - /url: /catalog.html\n  - link \"Books\":\n    - /url: /books.html\n  - link \"My Books\":\n    - /url: /my-books.html\n- heading \"Library Catalog\" [level=1]\n- text: Search\n- searchbox \"Search\"\n- button \"Search\"",
+      "entities": []
+    },
+    {
+      "path": "/login.html",
+      "url": "http://localhost:4400/login.html",
+      "title": "Library Login",
+      "pageName": "Library Login",
+      "headings": ["Library Login"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Login",
+          "isSubmit": true,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Login\" })"
+          }
+        }
+      ],
+      "links": [],
+      "inputs": [
+        {
+          "role": "textbox",
+          "name": "Username",
+          "inputType": "text",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"textbox\", { name: \"Username\" })"
+          }
+        },
+        {
+          "role": "textbox",
+          "name": "Password",
+          "inputType": "password",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"textbox\", { name: \"Password\" })"
+          }
+        }
+      ],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 0,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "alert",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- heading \"Library Login\" [level=1]\n- text: Username\n- textbox \"Username\"\n- text: Password\n- textbox \"Password\"\n- button \"Login\"\n- alert",
+      "entities": []
+    },
+    {
+      "path": "/books.html",
+      "url": "http://localhost:4400/books.html",
+      "title": "Books",
+      "pageName": "Books",
+      "headings": ["Books"],
+      "buttons": [],
+      "links": [
+        {
+          "role": "link",
+          "name": "Login",
+          "href": "/login.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Login\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Catalog",
+          "href": "/catalog.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Catalog\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Books",
+          "href": "/books.html"
+        },
+        {
+          "role": "link",
+          "name": "My Books",
+          "href": "/my-books.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"My Books\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "The Pragmatic Programmer",
+          "href": "/book/b1.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"The Pragmatic Programmer\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Clean Code",
+          "href": "/book/b2.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Clean Code\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Design Patterns",
+          "href": "/book/b3.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Design Patterns\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Refactoring",
+          "href": "/book/b4.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Refactoring\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- navigation:\n  - link \"Login\":\n    - /url: /login.html\n  - link \"Catalog\":\n    - /url: /catalog.html\n  - link \"Books\":\n    - /url: /books.html\n  - link \"My Books\":\n    - /url: /my-books.html\n- heading \"Books\" [level=1]\n- link \"The Pragmatic Programmer\":\n  - /url: /book/b1.html\n- link \"Clean Code\":\n  - /url: /book/b2.html\n- link \"Design Patterns\":\n  - /url: /book/b3.html\n- link \"Refactoring\":\n  - /url: /book/b4.html",
+      "entities": [
+        {
+          "entityType": "book",
+          "name": "The Pragmatic Programmer",
+          "href": "/book/b1.html"
+        },
+        {
+          "entityType": "book",
+          "name": "Clean Code",
+          "href": "/book/b2.html"
+        },
+        {
+          "entityType": "book",
+          "name": "Design Patterns",
+          "href": "/book/b3.html"
+        },
+        {
+          "entityType": "book",
+          "name": "Refactoring",
+          "href": "/book/b4.html"
+        }
+      ]
+    },
+    {
+      "path": "/my-books.html",
+      "url": "http://localhost:4400/my-books.html",
+      "title": "My Books",
+      "pageName": "My Books",
+      "headings": ["My Books"],
+      "buttons": [],
+      "links": [
+        {
+          "role": "link",
+          "name": "Login",
+          "href": "/login.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Login\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Catalog",
+          "href": "/catalog.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Catalog\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Books",
+          "href": "/books.html",
+          "verified": {
+            "strategy": "text",
+            "confidence": "MEDIUM",
+            "resolvedLocator": "getByText(\"Books\", { exact: true })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "My Books",
+          "href": "/my-books.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"My Books\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- navigation:\n  - link \"Login\":\n    - /url: /login.html\n  - link \"Catalog\":\n    - /url: /catalog.html\n  - link \"Books\":\n    - /url: /books.html\n  - link \"My Books\":\n    - /url: /my-books.html\n- heading \"My Books\" [level=1]\n- list",
+      "entities": []
+    },
+    {
+      "path": "/book/b1.html",
+      "url": "http://localhost:4400/book/b1.html",
+      "title": "The Pragmatic Programmer",
+      "pageName": "The Pragmatic Programmer",
+      "headings": ["The Pragmatic Programmer"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Borrow",
+          "isSubmit": false,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Borrow\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Catalog",
+          "href": "/catalog.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Catalog\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Books",
+          "href": "/books.html",
+          "verified": {
+            "strategy": "text",
+            "confidence": "MEDIUM",
+            "resolvedLocator": "getByText(\"Books\", { exact: true })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "My Books",
+          "href": "/my-books.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"My Books\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- navigation:\n  - link \"Catalog\":\n    - /url: /catalog.html\n  - link \"Books\":\n    - /url: /books.html\n  - link \"My Books\":\n    - /url: /my-books.html\n- heading \"The Pragmatic Programmer\" [level=1]\n- button \"Borrow\"\n- status",
+      "entities": []
+    },
+    {
+      "path": "/book/b2.html",
+      "url": "http://localhost:4400/book/b2.html",
+      "title": "Clean Code",
+      "pageName": "Clean Code",
+      "headings": ["Clean Code"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Borrow",
+          "isSubmit": false,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Borrow\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Catalog",
+          "href": "/catalog.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Catalog\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Books",
+          "href": "/books.html",
+          "verified": {
+            "strategy": "text",
+            "confidence": "MEDIUM",
+            "resolvedLocator": "getByText(\"Books\", { exact: true })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "My Books",
+          "href": "/my-books.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"My Books\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- navigation:\n  - link \"Catalog\":\n    - /url: /catalog.html\n  - link \"Books\":\n    - /url: /books.html\n  - link \"My Books\":\n    - /url: /my-books.html\n- heading \"Clean Code\" [level=1]\n- button \"Borrow\"\n- status",
+      "entities": []
+    },
+    {
+      "path": "/book/b3.html",
+      "url": "http://localhost:4400/book/b3.html",
+      "title": "Design Patterns",
+      "pageName": "Design Patterns",
+      "headings": ["Design Patterns"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Borrow",
+          "isSubmit": false,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Borrow\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Catalog",
+          "href": "/catalog.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Catalog\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Books",
+          "href": "/books.html",
+          "verified": {
+            "strategy": "text",
+            "confidence": "MEDIUM",
+            "resolvedLocator": "getByText(\"Books\", { exact: true })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "My Books",
+          "href": "/my-books.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"My Books\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- navigation:\n  - link \"Catalog\":\n    - /url: /catalog.html\n  - link \"Books\":\n    - /url: /books.html\n  - link \"My Books\":\n    - /url: /my-books.html\n- heading \"Design Patterns\" [level=1]\n- button \"Borrow\"\n- status",
+      "entities": []
+    },
+    {
+      "path": "/book/b4.html",
+      "url": "http://localhost:4400/book/b4.html",
+      "title": "Refactoring",
+      "pageName": "Refactoring",
+      "headings": ["Refactoring"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Borrow",
+          "isSubmit": false,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Borrow\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Catalog",
+          "href": "/catalog.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Catalog\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Books",
+          "href": "/books.html",
+          "verified": {
+            "strategy": "text",
+            "confidence": "MEDIUM",
+            "resolvedLocator": "getByText(\"Books\", { exact: true })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "My Books",
+          "href": "/my-books.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"My Books\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- navigation:\n  - link \"Catalog\":\n    - /url: /catalog.html\n  - link \"Books\":\n    - /url: /books.html\n  - link \"My Books\":\n    - /url: /my-books.html\n- heading \"Refactoring\" [level=1]\n- button \"Borrow\"\n- status",
+      "entities": []
+    }
+  ],
+  "errors": []
+}

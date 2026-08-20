@@ -85,6 +85,12 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
     },
+    {
+      command: 'npm run library:start',
+      url: 'http://localhost:4400/login.html',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
   ],
   use: {
     baseURL: config.baseUrl,

@@ -1,0 +1,22 @@
+{
+  "requirements": {
+    "SEARCH-001": {
+      "name": "Open the catalog",
+      "priority": "Medium",
+      "feature": "Search",
+      "tests": ["library.search.generated.1"]
+    },
+    "BORROW-001": {
+      "name": "User should be able to search for a book, select it, borrow it, and verify it in my books",
+      "priority": "Medium",
+      "feature": "Borrow",
+      "tests": ["library.borrow.generated.1"]
+    },
+    "AUTH-001": {
+      "name": "Log in as reader",
+      "priority": "Medium",
+      "feature": "Auth",
+      "tests": ["library.auth.generated.1"]
+    }
+  }
+}

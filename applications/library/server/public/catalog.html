@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Catalog</title>
+  </head>
+  <body>
+    <nav>
+      <a href="/login.html">Login</a>
+      <a href="/catalog.html">Catalog</a>
+      <a href="/books.html">Books</a>
+      <a href="/my-books.html">My Books</a>
+    </nav>
+    <h1>Library Catalog</h1>
+
+    <form id="search-form">
+      <label for="q">Search</label>
+      <input id="q" name="q" type="search" aria-label="Search" />
+      <button type="submit">Search</button>
+    </form>
+
+    <div id="results"></div>
+
+    <script>
+      document.getElementById('search-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const q = document.getElementById('q').value;
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        const container = document.getElementById('results');
+        container.innerHTML = '';
+        const heading = document.createElement('h2');
+        heading.textContent = `Results for "${data.query}"`;
+        container.appendChild(heading);
+        for (const book of data.results) {
+          // `data-entity` is the generic, opt-in "this is a selectable
+          // item" convention page-crawler.ts reads (see collectEntityItems)
+          // — a real link so GAP's generic "Select a/an <item>" / "Open the
+          // ... details page" resolution can pick and click one without any
+          // library-specific code (see ui-mapper.ts).
+          const card = document.createElement('a');
+          card.className = 'book-card';
+          card.setAttribute('data-entity', 'book');
+          card.href = `/book/${book.id}.html`;
+          card.textContent = book.title;
+          container.appendChild(card);
+        }
+      });
+    </script>
+  </body>
+</html>

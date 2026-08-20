@@ -20,13 +20,15 @@ export interface ParsedRequirement {
 // Sentences that don't match any pattern below are silently skipped, not
 // force-fit into an action — see parseRequirement()'s final comment.
 const LOGIN_PATTERN = /^log\s*in\s+as\s+(.+)$/i;
-// "Search for a product" / "Search for "Mouse"" — the generic-English
-// convention that a search control's own accessible name is "Search" (see
-// ui-mapper.ts's mapRequirementToUI: target 'Search' name-matches exactly,
-// same evidence-scored path as any other fill), so this decomposes into
-// the EXISTING fill+submit vocabulary rather than a new step kind. A
-// literal quoted term is used verbatim; a bare noun ("a product") carries
-// no invented value — `deriveValueFrom` asks ui-mapper to derive one
+// "Search for a product" / "Search for "Mouse"" — decomposes into the
+// EXISTING fill+submit vocabulary rather than a new step kind. `target:
+// 'search'` is a MARKER (lowercase, same convention as the existing
+// 'submit' marker for click), not a literal accessible-name guess: it's
+// resolved in ui-mapper.ts's scoreElements() against the generic,
+// W3C-standard ARIA `searchbox` role — real discovered evidence, not an
+// assumption that the control is literally named "Search". A literal
+// quoted term is used verbatim; a bare noun ("a product") carries no
+// invented value — `deriveValueFrom` asks ui-mapper to derive one
 // deterministically from the discovered entity catalog instead (never a
 // guessed business value — see RawStep.deriveValueFrom).
 const SEARCH_QUOTED_PATTERN = /^search\s+for\s+"([^"]+)"$/i;
@@ -167,12 +169,12 @@ export function parseRequirement(text: string): ParsedRequirement {
     } else if ((match = LOGIN_PATTERN.exec(sentence))) {
       steps.push({ action: 'login', target: match[1].trim(), raw: sentence });
     } else if ((match = SEARCH_QUOTED_PATTERN.exec(sentence))) {
-      steps.push({ action: 'fill', target: 'Search', value: match[1], raw: sentence });
+      steps.push({ action: 'fill', target: 'search', value: match[1], raw: sentence });
       steps.push({ action: 'click', target: 'submit', raw: sentence });
     } else if ((match = SEARCH_BARE_PATTERN.exec(sentence))) {
       steps.push({
         action: 'fill',
-        target: 'Search',
+        target: 'search',
         deriveValueFrom: match[1].trim(),
         raw: sentence,
       });

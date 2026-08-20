@@ -158,7 +158,7 @@ function mostRecentFillValue(steps: RawStep[], beforeIndex: number): string | un
 // not a dynamic in-place update). Generic English vocabulary only — the
 // same regex matches "search results"/"product list"/"matching items" for
 // ANY application, never a fixed per-app word list.
-const CONTENT_WORDING = /\b(results?|items?|products?|matches?|cards?|listings?|\blist\b)\b/i;
+const CONTENT_WORDING = /\b(results?|items?|entit(?:y|ies)|matches?|cards?|listings?|\blist\b)\b/i;
 
 function mapVerify(
   step: RawStep,
@@ -211,65 +211,50 @@ function mapVerify(
     };
   }
 
-  // CONTENT assertion ("search results"/"product list"/"matching items"
-  // are displayed) — a live region is never automatically the right
-  // implementation here (see CONTENT_WORDING's comment above). The one
-  // generic, app-agnostic signal available without a second, dynamic
-  // discovery pass against a page that was never crawled (the results
-  // page only exists AFTER the preceding submit runs — discovery, which
-  // only follows static links, never saw it) is the value the PRECEDING
-  // fill step actually typed: whatever a real search/filter feature does
-  // with that term, showing it back somewhere on the resulting page (a
-  // "results for X" heading, a matching product title, ...) is close to
-  // universal — this is exactly the "text containing the searched term"
-  // evidence a human reviewing the page would look for too. `.first()`
-  // because a real results page often repeats the term (once in a
-  // heading, again in several result titles) — asserting "at least one
-  // exists" is the correct, non-guessing claim, not "exactly one".
-  // Never falls back to guessing an alert/status region instead — if
-  // there's no preceding fill value to check for, this honestly reports
-  // unmapped rather than picking a mechanism that doesn't answer the
-  // actual question asked.
-  if (CONTENT_WORDING.test(step.raw)) {
-    // The step's own wording explicitly names a SELECTED item ("the
-    // selected product", "the selected item") — a stronger, more specific
-    // signal than "whatever was recently typed": it refers to entity
-    // tracking (see mapRequirementToUI's `selectedEntity`, set by a
-    // preceding "Select a/an <item>" step), not free-text search-term
-    // evidence. Resolved via the SAME runtime-captured `selectedEntityName`
-    // variable code-generator.ts declares once per generated test — never a
-    // string baked in at generation time, since the actual selection is
-    // only known live (see ui-mapper.ts's 'select-entity' resolution) — the
-    // `{{entity:selected}}` marker is the same "computed value, not a
-    // literal" convention already used for `{{date:start}}`/`{{api:NNN}}`.
-    if (/\bselected\b/i.test(step.raw) && selectedEntityAvailable) {
-      return {
-        step,
+  // The step's own wording explicitly names a SELECTED item/entity ("the
+  // selected product", "the selected item", "the selected record") — a
+  // strong, self-sufficient signal on its own: it refers to entity
+  // tracking (see mapRequirementToUI's `selectedEntity`, set by a
+  // preceding "Select a/an <item>" step), never free-text search-term
+  // evidence, so it does NOT need to also look like generic result/content
+  // wording (CONTENT_WORDING below is a SEPARATE, narrower fallback for
+  // when there's no tracked entity to reference at all). Resolved via the
+  // SAME runtime-captured `selectedEntityName` variable code-generator.ts
+  // declares once per generated test — never a string baked in at
+  // generation time, since the actual selection is only known live (see
+  // ui-mapper.ts's 'select-entity' resolution) — the `{{entity:selected}}`
+  // marker is the same "computed value, not a literal" convention already
+  // used for `{{date:start}}`/`{{api:NNN}}`.
+  if (/\bselected\b/i.test(step.raw) && selectedEntityAvailable) {
+    return {
+      step,
+      confidence: 'HIGH',
+      resolved: {
+        kind: 'verify',
+        strategy: 'text',
         confidence: 'HIGH',
-        resolved: {
-          kind: 'verify',
-          strategy: 'text',
-          confidence: 'HIGH',
-          resolvedLocator: `getByText(selectedEntityName).first()`,
-          description: `expect(page.getByText(selectedEntityName).first()).toBeVisible()`,
-          detail: '{{entity:selected}}',
+        resolvedLocator: `getByText(selectedEntityName).first()`,
+        description: `expect(page.getByText(selectedEntityName).first()).toBeVisible()`,
+        detail: '{{entity:selected}}',
+      },
+      diagnostics: [
+        {
+          label: 'the deterministically selected item (name captured live at runtime)',
+          value: '{{entity:selected}}',
+          score: 75,
+          reasons: [
+            `the step's own wording ("selected") asks about a previously SELECTED entity, not ` +
+              'generic search/result content — the name captured live by the preceding "Select a/an ' +
+              '..." step is the generic evidence to check the page for, never a re-guessed literal',
+          ],
+          selected: true,
+          matchConfidence: 'High',
         },
-        diagnostics: [
-          {
-            label: 'the deterministically selected item (name captured live at runtime)',
-            value: '{{entity:selected}}',
-            score: 75,
-            reasons: [
-              `the step's own wording ("selected") asks about a previously SELECTED entity, not ` +
-                'generic search/result content — the name captured live by the preceding "Select a/an ' +
-                '..." step is the generic evidence to check the page for, never a re-guessed literal',
-            ],
-            selected: true,
-            matchConfidence: 'High',
-          },
-        ],
-      };
-    }
+      ],
+    };
+  }
+
+  if (CONTENT_WORDING.test(step.raw)) {
     if (precedingFillValue) {
       return {
         step,
@@ -751,8 +736,15 @@ function scoreElements(
   startPage: PageMap | undefined,
 ): ScoredCandidate<ElementCandidate>[] {
   const isSubmitMarker = step.action === 'click' && step.target === 'submit';
-  const pinned = !isSubmitMarker && step.target ? decodeFormPin(step.target) : undefined;
-  const target = isSubmitMarker ? undefined : pinned?.name;
+  // `target: 'search'` is a MARKER (see requirement-parser.ts's
+  // SEARCH_QUOTED_PATTERN/SEARCH_BARE_PATTERN comment) — never name-matched
+  // against a literal "search" element name, resolved instead against the
+  // generic, W3C-standard ARIA `searchbox` role below, same non-guessing
+  // philosophy as isSubmitMarker/el.isSubmit.
+  const isSearchMarker = step.action === 'fill' && step.target === 'search';
+  const isMarker = isSubmitMarker || isSearchMarker;
+  const pinned = !isMarker && step.target ? decodeFormPin(step.target) : undefined;
+  const target = isMarker ? undefined : pinned?.name;
   const results: ScoredCandidate<ElementCandidate>[] = [];
 
   for (const candidate of pool) {
@@ -782,6 +774,22 @@ function scoreElements(
       if (el.isSubmit) {
         score += 70;
         reasons.push('element is the form\'s native submit control (type="submit")');
+      }
+    } else if (isSearchMarker) {
+      // Two tiers of DISCOVERED evidence, never a literal name assumption:
+      // the strong signal is the generic, W3C-standard ARIA `searchbox`
+      // role (from a real <input type="search">); the fallback, same
+      // "regex over discovered names" philosophy as mapLogin's username-
+      // field detection above, covers the equally common real-world case
+      // of a plain textbox whose own discovered accessible name/label
+      // happens to mention "search" (e.g. aria-label="Search") without
+      // the semantic input type.
+      if (el.role === 'searchbox') {
+        score += 70;
+        reasons.push('element has the generic ARIA "searchbox" role');
+      } else if (/search/i.test(el.name)) {
+        score += 50;
+        reasons.push(`element's own discovered name ("${el.name}") indicates a search field`);
       }
     } else if (target) {
       const nameEvidence = scoreNameMatch(target, el.name);
@@ -858,7 +866,11 @@ function finalizeElement(
           ? 'checkable'
           : 'clickable';
   const targetLabel =
-    step.action === 'click' && step.target === 'submit' ? 'a submit control' : `"${step.target}"`;
+    step.action === 'click' && step.target === 'submit'
+      ? 'a submit control'
+      : step.action === 'fill' && step.target === 'search'
+        ? 'a search input'
+        : `"${step.target}"`;
   const ranked = rankCandidates(scored);
   const diagnostics = toCandidates(
     ranked,
@@ -1068,16 +1080,31 @@ function findEntity(
  * it doesn't weaken the safety guarantee.
  */
 function deferredElementResolution(step: RawStep, navigationIntent = false): StepMapping {
-  const target = step.action === 'click' && step.target === 'submit' ? undefined : step.target;
+  // Both 'submit' (click) and 'search' (fill) are MARKERS, not literal
+  // element names — they only resolve via real discovered evidence
+  // (native submit control / ARIA searchbox role, see scoreElements
+  // above), which doesn't exist yet when there's no static page context
+  // to resolve against. Rather than pass the bare marker word to the
+  // runtime as if it were a literal accessible name to fuzzy-match (which
+  // would silently reintroduce exactly the kind of guessing these markers
+  // exist to avoid), this fails safely, same as any other marker with
+  // nothing concrete to defer to.
+  const isMarker =
+    (step.action === 'click' && step.target === 'submit') ||
+    (step.action === 'fill' && step.target === 'search');
+  const target = isMarker ? undefined : step.target;
   if (!target) {
+    const markerWord = step.action === 'fill' ? 'search' : 'submit';
+    const controlLabel = step.action === 'fill' ? 'search input' : 'submit control';
     return {
       step,
       confidence: 'LOW',
       unmapped: {
         reason:
-          `"${step.raw}" has no page context to resolve a generic submit control against (no ` +
-          'discovered page evidence, and a bare "submit" marker names no element to defer to at ' +
-          'runtime either). Rephrase naming the control explicitly, e.g. Click "Submit".',
+          `"${step.raw}" has no page context to resolve a generic ${controlLabel} against (no ` +
+          `discovered page evidence, and a bare "${markerWord}" marker names no element to defer ` +
+          `to at runtime either). Rephrase naming the control explicitly, e.g. ` +
+          `${step.action === 'fill' ? 'Fill "Search" as "..."' : 'Click "Submit"'}.`,
       },
       diagnostics: [],
     };

@@ -38,6 +38,16 @@
       "defaultBrowser": "chromium",
       "supportedBrowsers": ["chromium"],
       "dataProfiles": ["qa-default"]
+    },
+    "library": {
+      "name": "Library",
+      "baseUrl": "http://localhost:4400",
+      "modules": [],
+      "authProfiles": ["reader"],
+      "defaultBrowser": "chromium",
+      "supportedBrowsers": ["chromium"],
+      "dataProfiles": ["qa-default"],
+      "startPath": "/login.html"
     }
   }
 }

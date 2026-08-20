@@ -1,0 +1,7 @@
+{
+  "_note": "Fake, local-only reference-app credentials — not real secrets. See docs/PLATFORM.md.",
+  "reader": {
+    "username": "reader1",
+    "password": "Reader123!"
+  }
+}
