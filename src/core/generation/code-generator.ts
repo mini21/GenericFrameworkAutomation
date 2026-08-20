@@ -70,6 +70,11 @@ function usesDateMarkers(steps: StepMapping[]): boolean {
   return steps.some((s) => s.step.value === '{{date:start}}' || s.step.value === '{{date:end}}');
 }
 
+/** Whether this spec needs the `selectedEntityLocator`/`selectedEntityName` runtime variables — see the 'select-entity'/'open-entity' cases in stepLines below. */
+function usesEntityTracking(steps: StepMapping[]): boolean {
+  return steps.some((s) => s.resolved?.kind === 'select-entity');
+}
+
 /**
  * Only capture the submit action's HTTP response when there's exactly one
  * submit click AND an EXPLICIT `verify-api` step in the spec to consume it
@@ -179,6 +184,29 @@ function stepLines(
       ];
     case 'check':
       return [`await ui.check(${targetExpression(resolved.detail ?? '', resolved.formIndex)});`];
+    case 'select-entity':
+      // Informational + the actual runtime capture: `resolved.detail` is the
+      // CSS selector generation-analysis picked (e.g. `[data-entity="product"]`)
+      // — `.first()` is a deliberate, DOCUMENT-ORDER pick among genuinely
+      // distinct data-entity items (never "ambiguity suppression": there IS
+      // no single correct one to guess at here, GAP's contract is "pick a
+      // deterministic representative", not "find THE one the requirement
+      // meant" — see ui-mapper.ts's 'select-entity' resolution). The name is
+      // captured live, not baked in at generation time, since a real
+      // results/listing page's content is often only known live (see
+      // mapVerify's `{{entity:selected}}` marker below, which reads this
+      // same variable).
+      return [
+        `// ${resolved.description}`,
+        `selectedEntityLocator = page.locator(${JSON.stringify(resolved.detail ?? '')}).first();`,
+        `selectedEntityName = (await selectedEntityLocator.textContent())?.trim() ?? '';`,
+      ];
+    case 'open-entity':
+      return [
+        `const urlBeforeOpen = page.url();`,
+        `await selectedEntityLocator.click();`,
+        `await page.waitForURL((url) => url.toString() !== urlBeforeOpen, { timeout: 10000 }).catch(() => {});`,
+      ];
     case 'click':
       if (step.step.target === 'submit' && shouldCaptureSubmitResponse) {
         // A submit control's own alert/status region often reports BOTH
@@ -228,9 +256,16 @@ function stepLines(
         ];
       }
       if (resolved.strategy === 'text') {
-        return [
-          `await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')}).first(), ${message}).toBeVisible();`,
-        ];
+        // `{{entity:selected}}` (same computed-value-marker convention as
+        // {{date:start}}/{{api:NNN}}) means "assert against whatever a
+        // preceding select-entity step ACTUALLY captured live", i.e. the
+        // runtime `selectedEntityName` variable — never a string literal
+        // baked in at generation time (see ui-mapper.ts's mapVerify).
+        const textExpr =
+          resolved.detail === '{{entity:selected}}'
+            ? 'selectedEntityName'
+            : JSON.stringify(resolved.detail ?? '');
+        return [`await expect(page.getByText(${textExpr}).first(), ${message}).toBeVisible();`];
       }
       return [
         `await expect(page.getByText(${JSON.stringify(resolved.detail ?? '')}), ${message}).toBeVisible();`,
@@ -389,12 +424,19 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
   }
 
   const shouldCaptureSubmitResponse = needsSubmitResponseCapture(spec.steps);
+  const needsEntityTracking = usesEntityTracking(spec.steps);
   let submitResponseCaptured = false;
   // Declared once, OUTSIDE every liveStep callback: the submit step and a
   // later verify-api step each run in their own callback's function scope,
   // so a `const` declared inside one would not be visible from the other.
   if (shouldCaptureSubmitResponse) {
     bodyLines.push('let submitResponse: Response;', '');
+  }
+  // Same cross-callback-scope reasoning as submitResponse above — a
+  // select-entity step and a later open-entity/verify step each run in
+  // their own liveStep() callback.
+  if (needsEntityTracking) {
+    bodyLines.push('let selectedEntityLocator: Locator;', "let selectedEntityName = '';", '');
   }
   for (const step of spec.steps) {
     const lines = stepLines(
@@ -413,9 +455,15 @@ export function generateSpecFile(spec: TestSpecification): GeneratedFile {
     }
   }
 
+  const playwrightTypeImports = [
+    ...(shouldCaptureSubmitResponse ? ['Response'] : []),
+    ...(needsEntityTracking ? ['Locator'] : []),
+  ];
   const importLines = [
     `import { test, expect } from '${baseFixtureImport}';`,
-    ...(shouldCaptureSubmitResponse ? [`import type { Response } from '@playwright/test';`] : []),
+    ...(playwrightTypeImports.length > 0
+      ? [`import type { ${playwrightTypeImports.join(', ')} } from '@playwright/test';`]
+      : []),
     `import { TAGS } from '${constantsImport}';`,
     `import { loadDataProfile } from '${dataProfileImport}';`,
     `import { getExecutionContext } from '${executionContextImport}';`,

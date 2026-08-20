@@ -75,7 +75,7 @@ test.describe(`Application Discovery — form-level context ${TAGS.SMOKE}`, () =
     expect(submit?.formIndex).toBeUndefined();
   });
 
-  test('the ambiguity card for a genuinely ambiguous cross-form Submit shows form identity, not two identical entries', async ({
+  test('a genuinely ambiguous cross-form Submit fails safely by default — never prompts during normal automation', async ({
     page,
   }) => {
     const crawled = await mapPage(page);
@@ -89,28 +89,65 @@ test.describe(`Application Discovery — form-level context ${TAGS.SMOKE}`, () =
     const steps: RawStep[] = [{ action: 'click', target: 'submit', raw: 'Submit the request' }];
     const [mapping] = mapRequirementToUI('genericapp', map, steps);
 
-    // Two equally-valid native submit controls, same page, same name — a
-    // real business ambiguity, correctly surfaced (never silently guessed).
-    expect(mapping.confidence).toBe('MEDIUM');
+    // Two equally-valid native submit controls, same page, same name, tied
+    // score — genuinely too close to call safely. The auto-locator-selection
+    // product requirement: normal automation NEVER stops to ask a human here
+    // — it fails safely with a full diagnostic instead (never guesses, never
+    // picks .first()).
+    expect(mapping.confidence).toBe('LOW');
+    expect(mapping.resolved).toBeUndefined();
+    expect(mapping.ambiguous).toBeUndefined();
+    expect(mapping.decision).toBe('SAFE_FAILURE');
+    expect(mapping.unmapped?.reason).toMatch(/too closely to choose safely/);
+    // The diagnostic still carries full, honest evidence for both real
+    // candidates — a human debugging this can see exactly why, even though
+    // nothing was auto-picked.
+    expect(mapping.diagnostics.map((d) => d.formLabel).sort()).toEqual([
+      'Employee form',
+      'Manager form',
+    ]);
+    expect(mapping.diagnostics.every((d) => !d.selected)).toBe(true);
+
+    // Rephrasing to pin one specific form's control (the same re-parse
+    // mechanism a disambiguation answer always used) resolves deterministically.
+    const employeeValue = mapping.diagnostics.find((d) => d.formLabel === 'Employee form')!.value;
+    const resolved = mapRequirementToUI('genericapp', map, [
+      { action: 'click', target: employeeValue, raw: 'Submit the request' },
+    ]);
+    expect(resolved[0].confidence).toBe('HIGH');
+    expect(resolved[0].decision).toBe('AUTO_SELECTED');
+    expect(resolved[0].resolved?.formIndex).toBeDefined();
+  });
+
+  test('the SAME ambiguity is offered as an interactive choice ONLY in explicit debug/developer mode', async ({
+    page,
+  }) => {
+    const crawled = await mapPage(page);
+    const map = {
+      application: 'genericapp',
+      baseUrl: 'http://localhost:9999',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      errors: [],
+      pages: [crawled],
+    };
+    const steps: RawStep[] = [{ action: 'click', target: 'submit', raw: 'Submit the request' }];
+    const [mapping] = mapRequirementToUI('genericapp', map, steps, { interactive: true });
+
+    expect(mapping.confidence).toBe('LOW');
+    expect(mapping.unmapped).toBeUndefined();
     const candidates = mapping.ambiguous?.candidates ?? [];
     expect(candidates).toHaveLength(2);
     expect(candidates.map((c) => c.formLabel).sort()).toEqual(['Employee form', 'Manager form']);
-    // The candidate LABEL a Manual QA reads stays the plain control name —
-    // formLabel is a separate, additive field the UI renders alongside it
-    // (see server/ui/public/app.js) — but the re-parse VALUE differs per
-    // candidate even though both share the same label, so a human's choice
-    // is genuinely distinguishable and deterministic (see below).
     expect(candidates.map((c) => c.label)).toEqual(['Submit', 'Submit']);
     expect(candidates[0].value).not.toBe(candidates[1].value);
 
-    // A human's disambiguation choice (re-parsed back into step.target,
-    // exactly as generation-orchestrator.ts's real resolveAmbiguity flow
-    // does) resolves deterministically to THAT specific form's control,
-    // never re-triggering the same tie.
     const employeeChoice = candidates.find((c) => c.formLabel === 'Employee form')!;
-    const resolved = mapRequirementToUI('genericapp', map, [
-      { action: 'click', target: employeeChoice.value, raw: 'Submit the request' },
-    ]);
+    const resolved = mapRequirementToUI(
+      'genericapp',
+      map,
+      [{ action: 'click', target: employeeChoice.value, raw: 'Submit the request' }],
+      { interactive: true },
+    );
     expect(resolved[0].confidence).toBe('HIGH');
     expect(resolved[0].ambiguous).toBeUndefined();
     expect(resolved[0].resolved?.formIndex).toBeDefined();

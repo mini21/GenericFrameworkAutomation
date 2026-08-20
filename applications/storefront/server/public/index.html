@@ -8,6 +8,7 @@
     <nav>
       <a href="/">Search</a>
       <a href="/products.html">Products</a>
+      <a href="/cart.html">Cart</a>
       <a href="/contact.html">Contact</a>
     </nav>
     <h1>Storefront</h1>
@@ -32,8 +33,15 @@
         heading.textContent = `Results for "${data.query}"`;
         container.appendChild(heading);
         for (const product of data.results) {
-          const card = document.createElement('div');
+          // `data-entity` is the generic, opt-in "this is a selectable
+          // item" convention page-crawler.ts reads (see collectEntityItems)
+          // — a real link so GAP's generic "Select a/an <item>" / "Open the
+          // ... details page" resolution can pick and click one without any
+          // e-commerce-specific code (see ui-mapper.ts).
+          const card = document.createElement('a');
           card.className = 'product-card';
+          card.setAttribute('data-entity', 'product');
+          card.href = `/product/${product.id}.html`;
           card.textContent = product.name;
           container.appendChild(card);
         }

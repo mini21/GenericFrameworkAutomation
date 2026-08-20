@@ -375,14 +375,17 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     });
   });
 
-  test('a bare "Open Leave" alone (no corroborating steps) is genuinely ambiguous between two same-named pages', () => {
-    // "Leave" matches both "Apply Leave" and "Leave History" by name alone
-    // — with nothing else to go on, this must ask, never guess.
+  test('a bare "Open Leave" alone (no corroborating steps) is genuinely ambiguous between two same-named pages — fails safely, never guessed', () => {
+    // "Leave" matches both "Apply Leave" and "Leave History" by name alone,
+    // tied — with nothing else to go on, normal automation must fail
+    // safely, never guess and never stop to ask (see the auto-locator-
+    // selection product requirement).
     const steps: RawStep[] = [{ action: 'navigate', target: 'Leave', raw: 'Open Leave' }];
     const [mapping] = mapRequirementToUI('hrms', MAP, steps);
-    expect(mapping.confidence).toBe('MEDIUM');
+    expect(mapping.confidence).toBe('LOW');
+    expect(mapping.decision).toBe('SAFE_FAILURE');
     expect(mapping.resolved).toBeUndefined();
-    expect(mapping.ambiguous?.candidates.map((c) => c.label).sort()).toEqual([
+    expect(mapping.diagnostics.map((c) => c.label).sort()).toEqual([
       'Apply Leave',
       'Leave History',
     ]);
@@ -405,9 +408,10 @@ test.describe(`Generation — UI mapper ${TAGS.SMOKE}`, () => {
     ];
     const mappings = mapRequirementToUI('hrms', MAP, steps);
 
-    expect(mappings[0].confidence).toBe('MEDIUM');
+    expect(mappings[0].confidence).toBe('LOW');
+    expect(mappings[0].decision).toBe('SAFE_FAILURE');
     expect(mappings[0].resolved).toBeUndefined();
-    expect(mappings[0].ambiguous?.candidates.map((c) => c.label).sort()).toEqual([
+    expect(mappings[0].diagnostics.map((c) => c.label).sort()).toEqual([
       'Apply Leave',
       'Leave History',
     ]);

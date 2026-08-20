@@ -50,6 +50,25 @@ export interface ConfirmationRegion {
   unique: boolean;
 }
 
+/**
+ * One item found via the generic, opt-in `data-entity="<type>"` markup
+ * convention — the same "app opts in to a stable hook" philosophy this
+ * project already uses for `data-testid` (see page-crawler.ts's `testIds`),
+ * just for "one of a set of selectable business items" (a product card, a
+ * search result, a list row, ...) rather than "a stable test hook". `<type>`
+ * is whatever string the application's own markup uses — core code never
+ * branches on its value (see ui-mapper.ts's entity resolution). Powers
+ * "Select a product"/"Select a result"-shaped requirement steps: GAP picks
+ * a deterministic (first, document-order) representative instead of
+ * inventing or guessing a business value.
+ */
+export interface DiscoveredEntityItem {
+  entityType: string;
+  name: string;
+  /** Present only when the entity element itself is a link — its href, resolved to a pathname. */
+  href?: string;
+}
+
 export interface PageMap {
   /** Pathname only (e.g. "/login.html"), used for crawl dedup and display. */
   path: string;
@@ -78,6 +97,8 @@ export interface PageMap {
   confirmationRegions: ConfirmationRegion[];
   /** Raw Locator.ariaSnapshot() output for the page, kept for debugging/future use. */
   ariaSnapshot: string;
+  /** Items found via the `data-entity` convention — see DiscoveredEntityItem. Optional so hand-built PageMap fixtures elsewhere in the test suite don't need updating. */
+  entities?: DiscoveredEntityItem[];
 }
 
 export interface ApplicationMap {

@@ -20,6 +20,36 @@ export interface ParsedRequirement {
 // Sentences that don't match any pattern below are silently skipped, not
 // force-fit into an action — see parseRequirement()'s final comment.
 const LOGIN_PATTERN = /^log\s*in\s+as\s+(.+)$/i;
+// "Search for a product" / "Search for "Mouse"" — the generic-English
+// convention that a search control's own accessible name is "Search" (see
+// ui-mapper.ts's mapRequirementToUI: target 'Search' name-matches exactly,
+// same evidence-scored path as any other fill), so this decomposes into
+// the EXISTING fill+submit vocabulary rather than a new step kind. A
+// literal quoted term is used verbatim; a bare noun ("a product") carries
+// no invented value — `deriveValueFrom` asks ui-mapper to derive one
+// deterministically from the discovered entity catalog instead (never a
+// guessed business value — see RawStep.deriveValueFrom).
+const SEARCH_QUOTED_PATTERN = /^search\s+for\s+"([^"]+)"$/i;
+const SEARCH_BARE_PATTERN = /^search\s+for\s+(?:a|an|the)\s+(\w+)$/i;
+// "Select a product" / "Select an item" — a NEW kind (not the existing
+// dropdown-select action, which always requires quotes+for/in/from, so
+// there's no collision): picks a deterministic representative discovered
+// entity, no UI action of its own. See generation-types.ts's StepAction.
+const SELECT_ENTITY_PATTERN = /^select\s+(?:a|an|the)\s+(\w+)$/i;
+// "Open the product details page" / "View product details" — checked
+// BEFORE the generic NAVIGATE_PATTERN below (which would otherwise treat
+// "product details page" as a literal page name to search for): this
+// specific shape means "act on whatever was just selected", not "navigate
+// to a statically-named page".
+const OPEN_ENTITY_DETAILS_PATTERN =
+  /^(?:open|view)\s+(?:the\s+)?(\w+)(?:'s)?\s+details?(?:\s+page)?$/i;
+// "Add the product to the cart" — the generic English convention that the
+// resulting control's accessible name is "Add to <Container>" (e.g. "Add
+// to Cart") — decomposes into an ORDINARY click target, same evidence-
+// scored resolution as any other click, no new step kind needed. A
+// differently-labeled control needs an explicit click step instead (e.g.
+// "Click Add to Bag") — never guessed beyond this one generic convention.
+const ADD_TO_CONTAINER_PATTERN = /^add\s+(?:the\s+)?(\w+)\s+to\s+(?:the\s+|my\s+)?(.+)$/i;
 const NAVIGATE_PATTERN = /^(?:open|go to|navigate to)\s+(?:the\s+)?(.+)$/i;
 const DATES_PATTERN = /^select\s+start\s+and\s+end\s+dates?$/i;
 // Same safe, already-established {{date:start}}/{{date:end}} marker as
@@ -88,6 +118,10 @@ const API_STATUS_PATTERN =
 // region instead of inventing what the text should say. See ui-mapper.ts.
 const BARE_VERIFY_PATTERN = /^(?:verify|check|confirm)\b/i;
 
+function capitalizeWords(value: string): string {
+  return value.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function splitSentences(text: string): string[] {
   return text
     .split(/\r?\n+|(?<=[.!?])\s+/)
@@ -132,16 +166,35 @@ export function parseRequirement(text: string): ParsedRequirement {
       steps.push({ action: 'fill', target: 'End Date', value: '{{date:end}}', raw: sentence });
     } else if ((match = LOGIN_PATTERN.exec(sentence))) {
       steps.push({ action: 'login', target: match[1].trim(), raw: sentence });
+    } else if ((match = SEARCH_QUOTED_PATTERN.exec(sentence))) {
+      steps.push({ action: 'fill', target: 'Search', value: match[1], raw: sentence });
+      steps.push({ action: 'click', target: 'submit', raw: sentence });
+    } else if ((match = SEARCH_BARE_PATTERN.exec(sentence))) {
+      steps.push({
+        action: 'fill',
+        target: 'Search',
+        deriveValueFrom: match[1].trim(),
+        raw: sentence,
+      });
+      steps.push({ action: 'click', target: 'submit', raw: sentence });
     } else if ((match = FILL_QUOTED_PATTERN.exec(sentence))) {
       steps.push({ action: 'fill', target: match[1].trim(), value: match[2], raw: sentence });
     } else if ((match = FILL_VALUE_FIRST_PATTERN.exec(sentence))) {
       steps.push({ action: 'fill', target: match[2].trim(), value: match[1], raw: sentence });
     } else if ((match = SELECT_QUOTED_PATTERN.exec(sentence))) {
       steps.push({ action: 'select', target: match[2].trim(), value: match[1], raw: sentence });
+    } else if ((match = SELECT_ENTITY_PATTERN.exec(sentence))) {
+      steps.push({ action: 'select-entity', target: match[1].trim(), raw: sentence });
     } else if ((match = CHECK_LABEL_FIRST_PATTERN.exec(sentence))) {
       steps.push({ action: 'check', target: match[1].trim(), raw: sentence });
     } else if ((match = CHECK_BOX_FIRST_PATTERN.exec(sentence))) {
       steps.push({ action: 'check', target: match[1].trim(), raw: sentence });
+    } else if ((match = ADD_TO_CONTAINER_PATTERN.exec(sentence))) {
+      steps.push({
+        action: 'click',
+        target: `Add to ${capitalizeWords(match[2].trim())}`,
+        raw: sentence,
+      });
     } else if (SUBMIT_REQUEST_PATTERN.test(sentence)) {
       steps.push({ action: 'click', target: 'submit', raw: sentence });
     } else if ((match = VERIFY_PATTERN.exec(sentence))) {
@@ -150,6 +203,8 @@ export function parseRequirement(text: string): ParsedRequirement {
       steps.push({ action: 'verify', value: `{{api:${match[1]}}}`, raw: sentence });
     } else if (BARE_VERIFY_PATTERN.test(sentence)) {
       steps.push({ action: 'verify', raw: sentence });
+    } else if ((match = OPEN_ENTITY_DETAILS_PATTERN.exec(sentence))) {
+      steps.push({ action: 'open-entity', target: match[1].trim(), raw: sentence });
     } else if ((match = NAVIGATE_PATTERN.exec(sentence))) {
       steps.push({ action: 'navigate', target: match[1].trim(), raw: sentence });
     } else if ((match = FILL_MISSING_VALUE_PATTERN.exec(sentence))) {

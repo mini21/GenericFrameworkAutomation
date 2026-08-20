@@ -1,7 +1,7 @@
 {
   "application": "storefront",
   "baseUrl": "http://localhost:4300",
-  "generatedAt": "2026-08-19T14:24:24.427Z",
+  "generatedAt": "2026-08-20T08:14:35.058Z",
   "pages": [
     {
       "path": "/",
@@ -44,6 +44,16 @@
         },
         {
           "role": "link",
+          "name": "Cart",
+          "href": "/cart.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Cart\" })"
+          }
+        },
+        {
+          "role": "link",
           "name": "Contact",
           "href": "/contact.html",
           "verified": {
@@ -72,7 +82,8 @@
       "navigation": 1,
       "testIds": [],
       "confirmationRegions": [],
-      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Storefront\" [level=1]\n- text: Search\n- searchbox \"Search\"\n- button \"Search\""
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Cart\":\n    - /url: /cart.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Storefront\" [level=1]\n- text: Search\n- searchbox \"Search\"\n- button \"Search\"",
+      "entities": []
     },
     {
       "path": "/products.html",
@@ -104,6 +115,137 @@
         },
         {
           "role": "link",
+          "name": "Cart",
+          "href": "/cart.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Cart\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Contact",
+          "href": "/contact.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Contact\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Wireless Mouse",
+          "href": "/product/p1.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Wireless Mouse\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Mechanical Keyboard",
+          "href": "/product/p2.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Mechanical Keyboard\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "USB-C Hub",
+          "href": "/product/p3.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"USB-C Hub\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Laptop Stand",
+          "href": "/product/p4.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Laptop Stand\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [],
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Cart\":\n    - /url: /cart.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Products\" [level=1]\n- link \"Wireless Mouse\":\n  - /url: /product/p1.html\n- link \"Mechanical Keyboard\":\n  - /url: /product/p2.html\n- link \"USB-C Hub\":\n  - /url: /product/p3.html\n- link \"Laptop Stand\":\n  - /url: /product/p4.html",
+      "entities": [
+        {
+          "entityType": "product",
+          "name": "Wireless Mouse",
+          "href": "/product/p1.html"
+        },
+        {
+          "entityType": "product",
+          "name": "Mechanical Keyboard",
+          "href": "/product/p2.html"
+        },
+        {
+          "entityType": "product",
+          "name": "USB-C Hub",
+          "href": "/product/p3.html"
+        },
+        {
+          "entityType": "product",
+          "name": "Laptop Stand",
+          "href": "/product/p4.html"
+        }
+      ]
+    },
+    {
+      "path": "/cart.html",
+      "url": "http://localhost:4300/cart.html",
+      "title": "Cart",
+      "pageName": "Cart",
+      "headings": ["Cart"],
+      "buttons": [],
+      "links": [
+        {
+          "role": "link",
+          "name": "Search",
+          "href": "/",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Search\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Products",
+          "href": "/products.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Products\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "href": "/cart.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Cart\" })"
+          }
+        },
+        {
+          "role": "link",
           "name": "Contact",
           "href": "/contact.html",
           "verified": {
@@ -121,7 +263,8 @@
       "navigation": 1,
       "testIds": [],
       "confirmationRegions": [],
-      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Products\" [level=1]\n- text: Wireless Mouse Mechanical Keyboard USB-C Hub Laptop Stand"
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Cart\":\n    - /url: /cart.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Cart\" [level=1]\n- list",
+      "entities": []
     },
     {
       "path": "/contact.html",
@@ -174,6 +317,16 @@
             "strategy": "role",
             "confidence": "HIGH",
             "resolvedLocator": "getByRole(\"link\", { name: \"Products\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "href": "/cart.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Cart\" })"
           }
         },
         {
@@ -287,7 +440,312 @@
           "unique": true
         }
       ],
-      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Contact Us\" [level=1]\n- form \"Sales form\":\n  - heading \"Sales\" [level=2]\n  - text: Name\n  - textbox \"Name\"\n  - text: Email\n  - textbox \"Email\"\n  - text: Message\n  - textbox \"Message\"\n  - checkbox \"Subscribe to newsletter\"\n  - text: Subscribe to newsletter\n  - button \"Submit\"\n- form \"Support form\":\n  - heading \"Support\" [level=2]\n  - text: Name\n  - textbox \"Name\"\n  - text: Email\n  - textbox \"Email\"\n  - text: Message\n  - textbox \"Message\"\n  - button \"Submit\"\n- status\n- alert"
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Cart\":\n    - /url: /cart.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Contact Us\" [level=1]\n- form \"Sales form\":\n  - heading \"Sales\" [level=2]\n  - text: Name\n  - textbox \"Name\"\n  - text: Email\n  - textbox \"Email\"\n  - text: Message\n  - textbox \"Message\"\n  - checkbox \"Subscribe to newsletter\"\n  - text: Subscribe to newsletter\n  - button \"Submit\"\n- form \"Support form\":\n  - heading \"Support\" [level=2]\n  - text: Name\n  - textbox \"Name\"\n  - text: Email\n  - textbox \"Email\"\n  - text: Message\n  - textbox \"Message\"\n  - button \"Submit\"\n- status\n- alert",
+      "entities": []
+    },
+    {
+      "path": "/product/p1.html",
+      "url": "http://localhost:4300/product/p1.html",
+      "title": "Wireless Mouse",
+      "pageName": "Wireless Mouse",
+      "headings": ["Wireless Mouse"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Add to Cart",
+          "isSubmit": false,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Add to Cart\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Search",
+          "href": "/",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Search\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Products",
+          "href": "/products.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Products\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "href": "/cart.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Cart\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Contact",
+          "href": "/contact.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Contact\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Cart\":\n    - /url: /cart.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Wireless Mouse\" [level=1]\n- button \"Add to Cart\"\n- status",
+      "entities": []
+    },
+    {
+      "path": "/product/p2.html",
+      "url": "http://localhost:4300/product/p2.html",
+      "title": "Mechanical Keyboard",
+      "pageName": "Mechanical Keyboard",
+      "headings": ["Mechanical Keyboard"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Add to Cart",
+          "isSubmit": false,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Add to Cart\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Search",
+          "href": "/",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Search\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Products",
+          "href": "/products.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Products\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "href": "/cart.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Cart\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Contact",
+          "href": "/contact.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Contact\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Cart\":\n    - /url: /cart.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Mechanical Keyboard\" [level=1]\n- button \"Add to Cart\"\n- status",
+      "entities": []
+    },
+    {
+      "path": "/product/p3.html",
+      "url": "http://localhost:4300/product/p3.html",
+      "title": "USB-C Hub",
+      "pageName": "USB-C Hub",
+      "headings": ["USB-C Hub"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Add to Cart",
+          "isSubmit": false,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Add to Cart\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Search",
+          "href": "/",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Search\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Products",
+          "href": "/products.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Products\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "href": "/cart.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Cart\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Contact",
+          "href": "/contact.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Contact\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Cart\":\n    - /url: /cart.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"USB-C Hub\" [level=1]\n- button \"Add to Cart\"\n- status",
+      "entities": []
+    },
+    {
+      "path": "/product/p4.html",
+      "url": "http://localhost:4300/product/p4.html",
+      "title": "Laptop Stand",
+      "pageName": "Laptop Stand",
+      "headings": ["Laptop Stand"],
+      "buttons": [
+        {
+          "role": "button",
+          "name": "Add to Cart",
+          "isSubmit": false,
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Add to Cart\" })"
+          }
+        }
+      ],
+      "links": [
+        {
+          "role": "link",
+          "name": "Search",
+          "href": "/",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Search\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Products",
+          "href": "/products.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Products\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Cart",
+          "href": "/cart.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"button\", { name: \"Cart\" })"
+          }
+        },
+        {
+          "role": "link",
+          "name": "Contact",
+          "href": "/contact.html",
+          "verified": {
+            "strategy": "role",
+            "confidence": "HIGH",
+            "resolvedLocator": "getByRole(\"link\", { name: \"Contact\" })"
+          }
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "checkboxes": [],
+      "tables": 0,
+      "forms": 0,
+      "navigation": 1,
+      "testIds": [],
+      "confirmationRegions": [
+        {
+          "role": "status",
+          "unique": true
+        }
+      ],
+      "ariaSnapshot": "- navigation:\n  - link \"Search\":\n    - /url: /\n  - link \"Products\":\n    - /url: /products.html\n  - link \"Cart\":\n    - /url: /cart.html\n  - link \"Contact\":\n    - /url: /contact.html\n- heading \"Laptop Stand\" [level=1]\n- button \"Add to Cart\"\n- status",
+      "entities": []
     }
   ],
   "errors": []

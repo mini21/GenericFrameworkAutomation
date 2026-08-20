@@ -1,7 +1,18 @@
 import { TestType } from '../execution/execution-manifest';
 import { Confidence, LocatorStrategy } from '../locator/locator-types';
 
-export type StepAction = 'login' | 'navigate' | 'fill' | 'click' | 'select' | 'check' | 'verify';
+export type StepAction =
+  | 'login'
+  | 'navigate'
+  | 'fill'
+  | 'click'
+  | 'select'
+  | 'check'
+  | 'verify'
+  /** "Select a/an <item>" — picks a deterministic representative discovered entity (see DiscoveredEntityItem); records it for later steps, takes no UI action itself. */
+  | 'select-entity'
+  /** "Open the <item> details page" — clicks the entity a preceding `select-entity` step selected, via the SAME runtime locator (see ui-mapper.ts/code-generator.ts). */
+  | 'open-entity';
 
 /** One step as literally parsed from the requirement text, before UI mapping. */
 export interface RawStep {
@@ -11,6 +22,14 @@ export interface RawStep {
   /** Value to fill, or (for `login`) the profile role, or (for `verify`) the expected text. */
   value?: string;
   raw: string;
+  /**
+   * For a `fill` step parsed with NO literal value (e.g. "Search for a
+   * product", as opposed to 'Search for "Mouse"') — the entity-type noun
+   * (e.g. "product") ui-mapper.ts should derive a deterministic value from,
+   * via a discovered `data-entity` item, instead of asking a human or
+   * inventing a business value. Never set together with `value`.
+   */
+  deriveValueFrom?: string;
 }
 
 export interface ResolvedStep {
@@ -32,7 +51,11 @@ export interface ResolvedStep {
     | 'select'
     | 'check'
     | 'verify'
-    | 'verify-api';
+    | 'verify-api'
+    /** Informational only — records which entity was deterministically selected; codegen emits a comment, no runtime action of its own. */
+    | 'select-entity'
+    /** Clicks the entity a preceding `select-entity` step captured, via that same runtime Locator — see code-generator.ts. */
+    | 'open-entity';
   description: string;
   /** Present when this step resolved to a specific discovered element re-verified via LocatorResolver. */
   strategy?: LocatorStrategy;
@@ -93,6 +116,19 @@ export interface StepMapping {
   unmapped?: { reason: string };
   /** Every candidate considered and scored (may be empty) — powers diagnostic mode regardless of confidence tier. */
   diagnostics: MappingCandidate[];
+  /**
+   * How this step's outcome was reached, for reporting (the auto-locator-
+   * selection product requirement's "every automatically resolved element
+   * must be reportable" contract) — `AUTO_SELECTED` for any HIGH/MEDIUM
+   * `resolved` outcome, `SAFE_FAILURE` for a LOW `unmapped` outcome that had
+   * real (if insufficient/too-close) candidates to consider. Absent for
+   * step kinds that don't go through margin-based scoring at all
+   * (login/verify/select-entity), and for a LOW outcome with literally zero
+   * candidates (nothing to have "failed safely" between).
+   */
+  decision?: 'AUTO_SELECTED' | 'SAFE_FAILURE';
+  /** The runner-up candidate's score, when at least two were scored — the margin `decision` was actually based on. */
+  runnerUpScore?: number;
 }
 
 export interface TestSpecification {

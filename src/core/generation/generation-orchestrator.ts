@@ -46,6 +46,15 @@ export interface GenerationInput {
    */
   resolveAmbiguity?: (step: RawStep, candidates: MappingCandidate[]) => Promise<string | undefined>;
   /**
+   * Opts into the pre-margin-policy interactive fallback (see ui-mapper.ts's
+   * MapRequirementOptions) — a step that can't be safely auto-selected is
+   * offered to `resolveAmbiguity` above instead of failing safely. Default
+   * false/omitted: normal automation NEVER prompts for a locator — the
+   * product requirement this closes. Only an explicit debug/developer
+   * caller (e.g. `gap:generate --interactive`) should ever set this.
+   */
+  interactiveResolution?: boolean;
+  /**
    * Called once per field named without a value ("Enter reason") — return
    * the value to fill it with, or undefined to leave it unresolved. Omit
    * for non-interactive callers: any field still missing a value after
@@ -383,7 +392,9 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
     };
   }
 
-  let mappings = mapRequirementToUI(input.application, map, parsed.steps);
+  let mappings = mapRequirementToUI(input.application, map, parsed.steps, {
+    interactive: input.interactiveResolution,
+  });
 
   // MEDIUM confidence: real evidence exists for more than one candidate.
   // Never guessed — ask (if a resolver was given), and re-score with the
@@ -406,7 +417,9 @@ export async function runGenerationPipeline(input: GenerationInput): Promise<Gen
       }
     }
     if (!choseSomething) break;
-    mappings = mapRequirementToUI(input.application, map, parsed.steps);
+    mappings = mapRequirementToUI(input.application, map, parsed.steps, {
+      interactive: input.interactiveResolution,
+    });
   }
 
   const diagnostics = input.diagnose ? mappings : undefined;

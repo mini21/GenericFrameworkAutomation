@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cart</title>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Search</a>
+      <a href="/products.html">Products</a>
+      <a href="/cart.html">Cart</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+    <h1>Cart</h1>
+    <ul id="cart-items"></ul>
+
+    <script>
+      (async () => {
+        const res = await fetch('/api/cart');
+        const data = await res.json();
+        const list = document.getElementById('cart-items');
+        for (const item of data.items) {
+          const li = document.createElement('li');
+          li.textContent = item.name;
+          list.appendChild(li);
+        }
+      })();
+    </script>
+  </body>
+</html>

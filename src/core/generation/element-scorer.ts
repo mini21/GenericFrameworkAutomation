@@ -99,16 +99,71 @@ export function scoreNameMatch(target: string, candidateName: string): ScoreEvid
   return undefined;
 }
 
+export interface ConfidenceThresholds {
+  /** Minimum top score AND minimum margin over the runner-up for a clear, decisive winner. */
+  highMinScore: number;
+  highMinMargin: number;
+  /**
+   * Minimum top score AND minimum margin over the runner-up to STILL
+   * auto-select — weaker evidence than HIGH, but a real, sufficient lead
+   * over the next-best candidate. Below this, the top candidate is not
+   * safely actionable (either too weak on its own, or too close to its
+   * runner-up to tell apart) and resolution fails safely instead of
+   * guessing — see ui-mapper.ts's finalizeElement/finalizeNavigate.
+   */
+  mediumMinScore: number;
+  mediumMinMargin: number;
+}
+
+function envNumber(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 /**
- * Turns a ranked candidate list into a confidence tier:
- * - HIGH: a clear winner — strong absolute evidence AND a healthy margin
- *   over the runner-up (so a tie between two decent matches is never HIGH).
- * - MEDIUM: real evidence exists, but not decisively — ask a human.
- * - LOW: nothing worth acting on — report inability to map, never guess.
+ * Named, per-call-configurable thresholds for the deterministic
+ * auto-selection policy — never a magic number scattered inline. Read fresh
+ * on every call (not cached at module load) so an env override takes effect
+ * for any caller/test that sets it before invoking classifyConfidence,
+ * without needing a process restart. Defaults match this scorer's
+ * long-standing HIGH tier; MEDIUM's own minimum margin (previously implicit
+ * — ANY topScore >= 20 was MEDIUM, regardless of how close the runner-up
+ * was) is new: see the auto-locator-selection product requirement this
+ * closes — MEDIUM must still mean "the top candidate genuinely, if less
+ * decisively, beat the field", not "there's a tie nobody broke".
  */
-export function classifyConfidence(topScore: number, secondScore: number): Confidence {
-  if (topScore >= 60 && topScore - secondScore >= 30) return 'HIGH';
-  if (topScore >= 20) return 'MEDIUM';
+export function currentConfidenceThresholds(): ConfidenceThresholds {
+  return {
+    highMinScore: envNumber('GAP_CONFIDENCE_HIGH_MIN_SCORE', 60),
+    highMinMargin: envNumber('GAP_CONFIDENCE_HIGH_MIN_MARGIN', 30),
+    mediumMinScore: envNumber('GAP_CONFIDENCE_MEDIUM_MIN_SCORE', 20),
+    mediumMinMargin: envNumber('GAP_CONFIDENCE_MEDIUM_MIN_MARGIN', 10),
+  };
+}
+
+/**
+ * Turns a ranked candidate list into a confidence tier, purely from the top
+ * candidate's own score and its MARGIN over the runner-up (score alone is
+ * never enough — two decent-but-tied candidates must never auto-select):
+ * - HIGH: a clear winner — strong absolute evidence AND a healthy margin.
+ * - MEDIUM: real evidence, less decisive, but still a sufficient lead over
+ *   the runner-up — still auto-selected (see ui-mapper.ts), never merely
+ *   because MEDIUM was reached, always because the margin says so.
+ * - LOW: nothing worth acting on — either too weak, or too close a race to
+ *   call — report inability to map, never guess (see the "fail safely"
+ *   product requirement this implements).
+ */
+export function classifyConfidence(
+  topScore: number,
+  secondScore: number,
+  thresholds: ConfidenceThresholds = currentConfidenceThresholds(),
+): Confidence {
+  const margin = topScore - secondScore;
+  if (topScore >= thresholds.highMinScore && margin >= thresholds.highMinMargin) return 'HIGH';
+  if (topScore >= thresholds.mediumMinScore && margin >= thresholds.mediumMinMargin)
+    return 'MEDIUM';
   return 'LOW';
 }
 

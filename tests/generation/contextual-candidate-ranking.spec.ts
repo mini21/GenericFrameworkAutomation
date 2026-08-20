@@ -62,11 +62,14 @@ const MAP: ApplicationMap = {
 };
 
 test.describe(`Generation — contextual candidate ranking ${TAGS.SMOKE}`, () => {
-  test('1. same text on multiple pages, no preceding step to give context, is genuinely ambiguous', () => {
+  test('1. same text on multiple pages, no preceding step to give context, is genuinely ambiguous — fails safely by default, never auto-picked', () => {
     const steps: RawStep[] = [{ action: 'click', target: 'Search', raw: 'Submit the search' }];
     const [mapping] = mapRequirementToUI('genericapp', MAP, steps);
-    expect(mapping.confidence).toBe('MEDIUM');
-    expect(mapping.ambiguous?.candidates.length).toBe(3);
+    expect(mapping.confidence).toBe('LOW');
+    expect(mapping.decision).toBe('SAFE_FAILURE');
+    expect(mapping.resolved).toBeUndefined();
+    expect(mapping.diagnostics.length).toBe(3);
+    expect(mapping.diagnostics.every((d) => !d.selected)).toBe(true);
   });
 
   test('2. same button text repeated within a single page stays ambiguous even with page context established — the context bonus narrows to a page, not within it', () => {
@@ -95,8 +98,9 @@ test.describe(`Generation — contextual candidate ranking ${TAGS.SMOKE}`, () =>
     ];
     const mappings = mapRequirementToUI('genericapp', map, steps);
     expect(mappings[0].confidence).toBe('HIGH'); // the fill resolves fine — only one input named "Search"
-    expect(mappings[1].confidence).toBe('MEDIUM');
-    expect(mappings[1].ambiguous?.candidates.length).toBe(2);
+    expect(mappings[1].confidence).toBe('LOW');
+    expect(mappings[1].decision).toBe('SAFE_FAILURE');
+    expect(mappings[1].diagnostics.length).toBe(2);
   });
 
   test('3. an input followed by a submit action: the submit resolves against the SAME page the input was found on, not a copy on another page', () => {
@@ -125,12 +129,8 @@ test.describe(`Generation — contextual candidate ranking ${TAGS.SMOKE}`, () =>
     const steps: RawStep[] = [{ action: 'click', target: 'Search', raw: 'Submit the search' }];
     const [mapping] = mapRequirementToUI('genericapp', MAP, steps);
     expect(mapping.resolved).toBeUndefined();
-    expect(mapping.ambiguous).toBeDefined();
-    expect(mapping.ambiguous?.candidates.map((c) => c.label)).toEqual([
-      'Search',
-      'Search',
-      'Search',
-    ]);
+    expect(mapping.unmapped).toBeDefined();
+    expect(mapping.diagnostics.map((c) => c.label)).toEqual(['Search', 'Search', 'Search']);
   });
 
   test('5. the exact same ambiguous step becomes uniquely resolvable once a preceding step supplies page context', () => {
@@ -138,7 +138,8 @@ test.describe(`Generation — contextual candidate ranking ${TAGS.SMOKE}`, () =>
       { action: 'click', target: 'Search', raw: 'Submit the search' },
     ];
     const [withoutContext] = mapRequirementToUI('genericapp', MAP, ambiguousAlone);
-    expect(withoutContext.confidence).toBe('MEDIUM');
+    expect(withoutContext.confidence).toBe('LOW');
+    expect(withoutContext.decision).toBe('SAFE_FAILURE');
 
     const withPrecedingFill: RawStep[] = [
       {
@@ -300,17 +301,22 @@ test.describe(`Generation — contextual candidate ranking, reported defect ${TA
         },
       ];
       const [mapping] = mapRequirementToUI(id, map, steps);
-      expect(mapping.confidence).toBe('MEDIUM');
+      expect(mapping.confidence).toBe('LOW');
+      expect(mapping.decision).toBe('SAFE_FAILURE');
       expect(mapping.resolved).toBeUndefined();
-      expect(mapping.ambiguous?.candidates.length).toBe(2);
+      expect(mapping.diagnostics.length).toBe(2);
     } finally {
       cleanUpApp(id);
     }
   });
 
   test('ambiguity candidates carry page/url/relationship/confidence context — never bare identical labels', () => {
+    // Interactive/debug mode explicitly requested here — this test is about
+    // the CANDIDATE METADATA shape, not the default safe-failure policy
+    // (covered above), so it opts into the one place that shape still
+    // surfaces as `.ambiguous`.
     const steps: RawStep[] = [{ action: 'click', target: 'Search', raw: 'Submit the search' }];
-    const [mapping] = mapRequirementToUI('genericapp', MAP, steps);
+    const [mapping] = mapRequirementToUI('genericapp', MAP, steps, { interactive: true });
     expect(mapping.ambiguous?.candidates.length).toBeGreaterThan(1);
     for (const c of mapping.ambiguous?.candidates ?? []) {
       expect(c.pageName).toBeTruthy();
@@ -384,7 +390,7 @@ test.describe(`Generation — confidence-driven candidate resolution ${TAGS.SMOK
     expect(mappings[1].resolved).toBeDefined();
   });
 
-  test('B. multiple genuinely different, identically-named controls with no distinguishing context — a real business choice — still asks', () => {
+  test('B. multiple genuinely different, identically-named controls with no distinguishing context — a real business choice — fails safely, never guessed', () => {
     const map: ApplicationMap = {
       application: 'genericapp',
       baseUrl: 'http://localhost:9999',
@@ -401,8 +407,9 @@ test.describe(`Generation — confidence-driven candidate resolution ${TAGS.SMOK
     // pair each with their own identically-labeled Submit control.
     const steps: RawStep[] = [{ action: 'click', target: 'Search', raw: 'Submit the form' }];
     const [mapping] = mapRequirementToUI('genericapp', map, steps);
-    expect(mapping.confidence).toBe('MEDIUM');
-    expect(mapping.ambiguous?.candidates.length).toBe(2);
+    expect(mapping.confidence).toBe('LOW');
+    expect(mapping.decision).toBe('SAFE_FAILURE');
+    expect(mapping.diagnostics.length).toBe(2);
   });
 
   test('C. the same control text on different pages resolves via the page a preceding step already established', () => {
@@ -659,7 +666,7 @@ test.describe(`Generation — page-context pre-filtering (action-aware resolutio
     expect(mappings[1].ambiguous).toBeUndefined();
   });
 
-  test('5. two genuinely different forms with no distinguishing context still ask the Manual QA', () => {
+  test('5. two genuinely different forms with no distinguishing context fail safely, never guessed', () => {
     const map: ApplicationMap = {
       application: 'genericapp',
       baseUrl: 'http://localhost:9999',
@@ -672,8 +679,9 @@ test.describe(`Generation — page-context pre-filtering (action-aware resolutio
     };
     const steps: RawStep[] = [{ action: 'click', target: 'Search', raw: 'Submit the form' }];
     const [mapping] = mapRequirementToUI('genericapp', map, steps);
-    expect(mapping.confidence).toBe('MEDIUM');
-    expect(mapping.ambiguous?.candidates.length).toBe(2);
+    expect(mapping.confidence).toBe('LOW');
+    expect(mapping.decision).toBe('SAFE_FAILURE');
+    expect(mapping.diagnostics.length).toBe(2);
   });
 
   test('6. the same text on unrelated pages resolves via page/context once a preceding step establishes it', () => {

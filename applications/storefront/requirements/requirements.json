@@ -5,6 +5,12 @@
       "priority": "Medium",
       "feature": "Search",
       "tests": ["storefront.search.generated.1"]
+    },
+    "SHOPPING-001": {
+      "name": "User should be able to search for a product, select it, add it to the cart, and verify it in the cart",
+      "priority": "Medium",
+      "feature": "Shopping",
+      "tests": ["storefront.shopping.generated.1"]
     }
   }
 }

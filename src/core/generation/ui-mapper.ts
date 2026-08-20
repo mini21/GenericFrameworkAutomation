@@ -164,6 +164,7 @@ function mapVerify(
   step: RawStep,
   currentPage: PageMap | undefined,
   precedingFillValue: string | undefined,
+  selectedEntityAvailable: boolean,
 ): StepMapping {
   // An EXPLICIT network/API assertion, from requirement-parser.ts's
   // API_STATUS_PATTERN — only ever produced when the requirement itself
@@ -230,6 +231,45 @@ function mapVerify(
   // unmapped rather than picking a mechanism that doesn't answer the
   // actual question asked.
   if (CONTENT_WORDING.test(step.raw)) {
+    // The step's own wording explicitly names a SELECTED item ("the
+    // selected product", "the selected item") — a stronger, more specific
+    // signal than "whatever was recently typed": it refers to entity
+    // tracking (see mapRequirementToUI's `selectedEntity`, set by a
+    // preceding "Select a/an <item>" step), not free-text search-term
+    // evidence. Resolved via the SAME runtime-captured `selectedEntityName`
+    // variable code-generator.ts declares once per generated test — never a
+    // string baked in at generation time, since the actual selection is
+    // only known live (see ui-mapper.ts's 'select-entity' resolution) — the
+    // `{{entity:selected}}` marker is the same "computed value, not a
+    // literal" convention already used for `{{date:start}}`/`{{api:NNN}}`.
+    if (/\bselected\b/i.test(step.raw) && selectedEntityAvailable) {
+      return {
+        step,
+        confidence: 'HIGH',
+        resolved: {
+          kind: 'verify',
+          strategy: 'text',
+          confidence: 'HIGH',
+          resolvedLocator: `getByText(selectedEntityName).first()`,
+          description: `expect(page.getByText(selectedEntityName).first()).toBeVisible()`,
+          detail: '{{entity:selected}}',
+        },
+        diagnostics: [
+          {
+            label: 'the deterministically selected item (name captured live at runtime)',
+            value: '{{entity:selected}}',
+            score: 75,
+            reasons: [
+              `the step's own wording ("selected") asks about a previously SELECTED entity, not ` +
+                'generic search/result content — the name captured live by the preceding "Select a/an ' +
+                '..." step is the generic evidence to check the page for, never a re-guessed literal',
+            ],
+            selected: true,
+            matchConfidence: 'High',
+          },
+        ],
+      };
+    }
     if (precedingFillValue) {
       return {
         step,
@@ -266,8 +306,9 @@ function mapVerify(
         reason:
           'This assertion asks about result/content ("results"/"items"/"list"/...), which an ARIA ' +
           "alert/status region does not reliably represent — and there is no preceding fill step's " +
-          'own value to check the page for instead. Rephrase with the exact expected text (e.g. ' +
-          'Verify "3 results found" is shown), or add a preceding fill step this can use as context.',
+          "own value, nor a previously selected entity (see 'Select a/an <item>'), to check the page " +
+          'for instead. Rephrase with the exact expected text (e.g. Verify "3 results found" is ' +
+          'shown), or add a preceding fill/select step this can use as context.',
       },
       diagnostics: [],
     };
@@ -522,10 +563,25 @@ interface NavigateOutcome {
   chosenPage?: PageMap;
 }
 
+/**
+ * HIGH and MEDIUM both auto-select — the sole product requirement being
+ * closed here: normal automation must never stop to ask a human to pick a
+ * locator merely because confidence is MEDIUM (see element-scorer.ts's
+ * classifyConfidence — MEDIUM already means "a real, sufficient margin over
+ * the runner-up", not "a tie nobody broke"). Only a genuine LOW — too weak
+ * on its own, or too close a race between the top two to call — fails
+ * safely, and even then only reports `ambiguous` (prompting a human) when
+ * the caller explicitly opted into interactive/debug mode; the default,
+ * normal-automation path always reports `unmapped` with a full diagnostic
+ * instead, per the "an interactive fallback may exist as an explicit
+ * debug/developer mode, but must NOT be required for normal automation"
+ * product requirement.
+ */
 function finalizeNavigate(
   step: RawStep,
   target: string,
   scored: ScoredCandidate<PageMap>[],
+  interactive: boolean,
 ): NavigateOutcome {
   const ranked = rankCandidates(scored);
   const diagnostics = toCandidates(ranked, (p) => p.pageName);
@@ -542,28 +598,38 @@ function finalizeNavigate(
   }
 
   const top = ranked[0];
-  const confidence = classifyConfidence(top.score, ranked[1]?.score ?? 0);
+  const runnerUpScore = ranked[1]?.score ?? 0;
+  const confidence = classifyConfidence(top.score, runnerUpScore);
 
   if (confidence === 'LOW') {
+    if (interactive) {
+      return {
+        mapping: {
+          step,
+          confidence,
+          ambiguous: { candidates: diagnostics },
+          diagnostics,
+          decision: 'SAFE_FAILURE',
+          runnerUpScore,
+        },
+      };
+    }
+    const tooClose = ranked.length > 1 && runnerUpScore > 0;
     return {
       mapping: {
         step,
         confidence,
         unmapped: {
-          reason: `No discovered page confidently matches "${target}". Best candidate: "${top.item.pageName}" (score ${top.score}: ${top.reasons.join('; ')}).`,
+          reason: tooClose
+            ? `"${target}" matches more than one discovered page too closely to choose safely — top ` +
+              `candidate "${top.item.pageName}" (score ${top.score}: ${top.reasons.join('; ')}) vs ` +
+              `runner-up "${ranked[1].item.pageName}" (score ${runnerUpScore}: ${ranked[1].reasons.join('; ')}). ` +
+              'Rephrase with a more specific page name, or add an earlier step that narrows which page is meant.'
+            : `No discovered page confidently matches "${target}". Best candidate: "${top.item.pageName}" (score ${top.score}: ${top.reasons.join('; ')}).`,
         },
         diagnostics,
-      },
-    };
-  }
-
-  if (confidence === 'MEDIUM') {
-    return {
-      mapping: {
-        step,
-        confidence,
-        ambiguous: { candidates: diagnostics },
-        diagnostics,
+        decision: 'SAFE_FAILURE',
+        runnerUpScore,
       },
     };
   }
@@ -572,13 +638,15 @@ function finalizeNavigate(
   return {
     mapping: {
       step,
-      confidence: 'HIGH',
+      confidence,
       resolved: {
         kind: 'navigate',
         description: `page.goto('${top.item.path}')`,
         detail: top.item.path,
       },
       diagnostics,
+      decision: 'AUTO_SELECTED',
+      runnerUpScore,
     },
     chosenPage: top.item,
   };
@@ -779,6 +847,7 @@ function finalizeElement(
   step: RawStep,
   scored: ScoredCandidate<ElementCandidate>[],
   contextPage: PageMap | undefined,
+  interactive: boolean,
 ): ElementOutcome {
   const actionLabel =
     step.action === 'fill'
@@ -816,24 +885,39 @@ function finalizeElement(
   }
 
   const top = ranked[0];
-  const confidence = classifyConfidence(top.score, ranked[1]?.score ?? 0);
+  const runnerUpScore = ranked[1]?.score ?? 0;
+  const confidence = classifyConfidence(top.score, runnerUpScore);
 
   if (confidence === 'LOW') {
+    if (interactive) {
+      return {
+        mapping: {
+          step,
+          confidence,
+          ambiguous: { candidates: diagnostics },
+          diagnostics,
+          decision: 'SAFE_FAILURE',
+          runnerUpScore,
+        },
+      };
+    }
+    const tooClose = ranked.length > 1 && runnerUpScore > 0;
     return {
       mapping: {
         step,
         confidence,
         unmapped: {
-          reason: `No discovered element confidently matches ${targetLabel}. Best candidate: "${top.item.element.name}" (score ${top.score}: ${top.reasons.join('; ')}).`,
+          reason: tooClose
+            ? `${targetLabel} matches more than one discovered element too closely to choose safely — ` +
+              `top candidate "${top.item.element.name}" (score ${top.score}: ${top.reasons.join('; ')}) vs ` +
+              `runner-up (score ${runnerUpScore}: ${ranked[1].reasons.join('; ')}). Rephrase more ` +
+              'specifically, or add a preceding "Open <Page>" step to narrow which page\'s element is meant.'
+            : `No discovered element confidently matches ${targetLabel}. Best candidate: "${top.item.element.name}" (score ${top.score}: ${top.reasons.join('; ')}).`,
         },
         diagnostics,
+        decision: 'SAFE_FAILURE',
+        runnerUpScore,
       },
-    };
-  }
-
-  if (confidence === 'MEDIUM') {
-    return {
-      mapping: { step, confidence, ambiguous: { candidates: diagnostics }, diagnostics },
     };
   }
 
@@ -848,6 +932,8 @@ function finalizeElement(
           reason: `"${el.name}" scored as the best match for ${targetLabel} but is not currently verified as uniquely ${actionLabel}.`,
         },
         diagnostics,
+        decision: 'SAFE_FAILURE',
+        runnerUpScore,
       },
     };
   }
@@ -872,7 +958,7 @@ function finalizeElement(
   return {
     mapping: {
       step,
-      confidence: 'HIGH',
+      confidence,
       resolved: {
         kind,
         description,
@@ -883,6 +969,8 @@ function finalizeElement(
         formIndex: el.formIndex,
       },
       diagnostics,
+      decision: 'AUTO_SELECTED',
+      runnerUpScore,
     },
     chosenPage: top.item.page,
     linkHref: el.role === 'link' ? el.href : undefined,
@@ -898,13 +986,57 @@ function finalizeElement(
  * automatically; MEDIUM returns ranked candidates for the caller to confirm
  * (see cli/lib/generation-approval.ts); LOW is reported, never guessed.
  */
+export interface MapRequirementOptions {
+  /**
+   * Opts into the pre-margin-policy interactive fallback: a LOW-confidence
+   * element/page step with real (if insufficient) candidates is reported as
+   * `ambiguous` (prompting a human — see cli/lib/generation-approval.ts's
+   * resolveAmbiguityInteractively / server/ui/routes.ts's askQuestion)
+   * instead of failing safely. Default false/omitted: normal automation
+   * NEVER prompts — a step that can't be safely auto-selected fails with a
+   * full diagnostic instead. This is the one, single switch between "normal
+   * automation" and "explicit debug/developer mode" the product requirement
+   * asks for (section 4/17) — nothing else in this file branches on it.
+   */
+  interactive?: boolean;
+}
+
+/** One entity a "Select a/an <item>" step deterministically picked — see DiscoveredEntityItem. */
+interface SelectedEntity {
+  entityType: string;
+  name: string;
+}
+
+/** Finds the first discovered entity of `typeHint` (or, absent a hint, the first entity at all) on `preferredPage`, falling back to scanning every discovered page — a product/result catalog is inherently page-agnostic (it typically lives on ITS OWN listing page, not wherever the workflow currently is). Returns the page it was actually found on alongside it, needed to predict the destination page a later "Open ... details" click will land on. */
+function findEntity(
+  typeHint: string,
+  preferredPage: PageMap | undefined,
+  allPages: PageMap[],
+): { entity: { entityType: string; name: string; href?: string }; page: PageMap } | undefined {
+  const matches = (e: { entityType: string }) =>
+    !typeHint || e.entityType.toLowerCase() === typeHint.toLowerCase();
+  if (preferredPage) {
+    const found = (preferredPage.entities ?? []).filter(matches);
+    if (found.length > 0) return { entity: found[0], page: preferredPage };
+  }
+  for (const page of allPages) {
+    if (page === preferredPage) continue;
+    const found = (page.entities ?? []).filter(matches);
+    if (found.length > 0) return { entity: found[0], page };
+  }
+  return undefined;
+}
+
 export function mapRequirementToUI(
   application: string,
   map: ApplicationMap,
   steps: RawStep[],
+  options: MapRequirementOptions = {},
 ): StepMapping[] {
   const mappings: StepMapping[] = [];
+  const interactive = options.interactive ?? false;
   let currentPage: PageMap | undefined;
+  let selectedEntity: SelectedEntity | undefined;
   // The page a generated test's own prepended page.goto(app.startPath)
   // actually lands on (see code-generator.ts's generateSpecFile) — used
   // ONLY as a scoring bonus for a fill/click step with no real preceding-
@@ -923,16 +1055,141 @@ export function mapRequirementToUI(
       continue;
     }
     if (step.action === 'verify') {
-      mappings.push(mapVerify(step, currentPage, mostRecentFillValue(steps, i)));
+      mappings.push(
+        mapVerify(step, currentPage, mostRecentFillValue(steps, i), selectedEntity !== undefined),
+      );
       continue;
     }
 
     if (step.action === 'navigate') {
       const target = step.target ?? '';
-      const outcome = finalizeNavigate(step, target, scorePages(target, map.pages));
+      const outcome = finalizeNavigate(step, target, scorePages(target, map.pages), interactive);
       mappings.push(outcome.mapping);
       if (outcome.chosenPage) currentPage = outcome.chosenPage;
       continue;
+    }
+
+    // "Select a/an <item>" — pure bookkeeping, no UI action of its own: picks
+    // a deterministic (first, document-order — never random, never guessed)
+    // representative from the discovered `data-entity` catalog and records
+    // it for later steps ("Open the ... details page", "Add the ... to the
+    // ...", "Verify the selected ... is present ..."). See findEntity above.
+    if (step.action === 'select-entity') {
+      const typeHint = step.target ?? '';
+      const found = findEntity(typeHint, currentPage ?? startPage, map.pages);
+      if (!found) {
+        mappings.push({
+          step,
+          confidence: 'LOW',
+          unmapped: {
+            reason:
+              `No discovered "${typeHint || 'item'}"-like entity found anywhere in the application ` +
+              '(see the data-entity markup convention) — cannot safely select one without guessing.',
+          },
+          diagnostics: [],
+        });
+        continue;
+      }
+      const { entity, page } = found;
+      selectedEntity = { entityType: entity.entityType, name: entity.name };
+      const cssSelector = `[data-entity="${entity.entityType}"]`;
+      mappings.push({
+        step,
+        confidence: 'HIGH',
+        resolved: {
+          kind: 'select-entity',
+          description:
+            `Select ${entity.entityType}: deterministic first discovered item on "${page.pageName}" ` +
+            `(predicted "${entity.name}"; the actual selection is captured live at runtime via ${cssSelector})`,
+          detail: cssSelector,
+        },
+        diagnostics: [
+          {
+            label: entity.name,
+            value: entity.name,
+            score: 100,
+            reasons: [
+              `first discovered "${entity.entityType}"-type item on "${page.pageName}", document order ` +
+                '— a deterministic, non-random representative, never a guessed business value',
+            ],
+            selected: true,
+            matchConfidence: 'High',
+          },
+        ],
+        decision: 'AUTO_SELECTED',
+      });
+      if (entity.href) {
+        const destination = map.pages.find((p) => p.path === entity.href);
+        if (destination) currentPage = destination;
+      }
+      continue;
+    }
+
+    // "Open the <item> details page" — acts on whatever a preceding
+    // select-entity step selected, via the SAME runtime Locator (see
+    // code-generator.ts) rather than re-matching by name: the entity was
+    // already deterministically chosen once, so there's nothing left to
+    // score here, and no live-DOM state to re-derive it from at generation
+    // time (a real results page — see section 6/7 — often only exists live).
+    if (step.action === 'open-entity') {
+      if (!selectedEntity) {
+        mappings.push({
+          step,
+          confidence: 'LOW',
+          unmapped: {
+            reason: `"${step.raw}" refers to a previously selected item, but no "Select a/an <item>" step resolved successfully before this one.`,
+          },
+          diagnostics: [],
+        });
+        continue;
+      }
+      mappings.push({
+        step,
+        confidence: 'HIGH',
+        resolved: {
+          kind: 'open-entity',
+          description: `Open the selected ${selectedEntity.entityType}'s details page (the runtime locator captured when it was selected)`,
+          detail: selectedEntity.name,
+        },
+        diagnostics: [
+          {
+            label: selectedEntity.name,
+            value: selectedEntity.name,
+            score: 100,
+            reasons: [
+              `the same item a preceding "Select a/an ${selectedEntity.entityType}" step already ` +
+                'deterministically selected — reused, never re-matched by name',
+            ],
+            selected: true,
+            matchConfidence: 'High',
+          },
+        ],
+        decision: 'AUTO_SELECTED',
+      });
+      continue;
+    }
+
+    // A `fill` step parsed with no literal value ("Search for a product",
+    // as opposed to Search for "Mouse") — derive one deterministically from
+    // the discovered entity catalog instead of asking a human or inventing
+    // a business value (same `findEntity` mechanism select-entity uses).
+    if (step.action === 'fill' && step.value === undefined && step.deriveValueFrom) {
+      const found = findEntity(step.deriveValueFrom, currentPage ?? startPage, map.pages);
+      if (!found) {
+        mappings.push({
+          step,
+          confidence: 'LOW',
+          unmapped: {
+            reason:
+              `"${step.raw}" names no explicit value, and no discovered "${step.deriveValueFrom}"-like ` +
+              'item exists anywhere in the application to derive one from. Rephrase with an explicit ' +
+              'quoted value, e.g. Search for "Mouse".',
+          },
+          diagnostics: [],
+        });
+        continue;
+      }
+      step.value = found.entity.name; // mutated in place — same "re-parse with the real value" convention used throughout this file
     }
 
     // fill / click — page/context filtering happens BEFORE semantic name
@@ -962,7 +1219,7 @@ export function mapRequirementToUI(
       scored = scoreElements(step, pool, currentPage, startPage);
     }
 
-    const outcome = finalizeElement(step, scored, currentPage);
+    const outcome = finalizeElement(step, scored, currentPage, interactive);
     mappings.push(outcome.mapping);
     // A click on a real navigation LINK is a genuine page transition — the
     // context a NEXT step should inherit is the link's DESTINATION, not

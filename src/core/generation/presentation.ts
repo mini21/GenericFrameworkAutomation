@@ -94,6 +94,13 @@ export function formatDiagnostics(mappings: StepMapping[]): string {
       }
     }
 
+    if (mapping.decision) {
+      lines.push(`   Decision: ${mapping.decision}`);
+      if (mapping.runnerUpScore !== undefined && mapping.diagnostics.length > 0) {
+        lines.push(`   Runner-up score: ${mapping.runnerUpScore}`);
+      }
+    }
+
     if (mapping.resolved) {
       lines.push(`   Resolved: ${mapping.resolved.description}`);
       if (mapping.resolved.strategy) {
@@ -102,9 +109,9 @@ export function formatDiagnostics(mappings: StepMapping[]): string {
         );
       }
     } else if (mapping.ambiguous) {
-      lines.push('   Resolved: (ambiguous — not automatically mapped)');
+      lines.push('   Resolved: (ambiguous — not automatically mapped; interactive mode only)');
     } else if (mapping.unmapped) {
-      lines.push(`   Resolved: (unmapped — ${mapping.unmapped.reason})`);
+      lines.push(`   Resolved: (safe failure — ${mapping.unmapped.reason})`);
     }
   });
 

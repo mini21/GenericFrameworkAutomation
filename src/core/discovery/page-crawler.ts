@@ -301,6 +301,44 @@ async function collectLinkHrefs(page: Page): Promise<Record<string, string>> {
   return hrefsByName;
 }
 
+// Generic, opt-in item-collection convention: any application's markup can
+// mark a repeatable, selectable business item (a product card, a search
+// result, a list row, ...) with `data-entity="<type>"` — the exact same
+// opt-in philosophy this file already uses for `data-testid` above, just
+// for "one of a set of selectable items" rather than "a stable test hook".
+// `<type>` is whatever string the application's own markup uses — nothing
+// here ever branches on its value. Only anchors are supported (the
+// `data-entity` attribute must be on the `<a>` itself) — deliberately
+// simple: a page wanting entity items to be openable just marks its own
+// link that way, no nested-element traversal needed. See discovery-types.ts's
+// DiscoveredEntityItem and ui-mapper.ts's "Select a/an <item>" resolution.
+async function collectEntityItems(
+  page: Page,
+): Promise<{ entityType: string; name: string; href?: string }[]> {
+  const raw = await page.locator('[data-entity]').evaluateAll((elements) =>
+    elements.map((el) => ({
+      entityType: el.getAttribute('data-entity') || '',
+      name: (el.textContent || el.getAttribute('aria-label') || '').trim(),
+      href: el.tagName.toLowerCase() === 'a' ? el.getAttribute('href') || undefined : undefined,
+    })),
+  );
+  const base = page.url();
+  return raw
+    .filter((item) => item.entityType && item.name)
+    .map((item) => {
+      if (!item.href) return { entityType: item.entityType, name: item.name };
+      try {
+        return {
+          entityType: item.entityType,
+          name: item.name,
+          href: new URL(item.href, base).pathname,
+        };
+      } catch {
+        return { entityType: item.entityType, name: item.name };
+      }
+    });
+}
+
 const CONFIRMATION_ROLES = ['alert', 'status', 'log'] as const;
 
 // ARIA live regions are frequently empty in the initial DOM (their content
@@ -340,6 +378,7 @@ export async function mapPage(page: Page): Promise<PageMap> {
     linkHrefsByName,
     confirmationRegions,
     formContext,
+    entities,
   ] = await Promise.all([
     page.title(),
     page.locator('body').ariaSnapshot(),
@@ -354,6 +393,7 @@ export async function mapPage(page: Page): Promise<PageMap> {
     collectLinkHrefs(page),
     collectConfirmationRegions(page),
     collectFormContext(page),
+    collectEntityItems(page),
   ]);
 
   const resolver = new LocatorResolver(page);
@@ -483,5 +523,6 @@ export async function mapPage(page: Page): Promise<PageMap> {
     testIds: testIds.slice(0, 20),
     confirmationRegions,
     ariaSnapshot,
+    entities,
   };
 }

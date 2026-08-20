@@ -31,6 +31,7 @@ async function main(): Promise<void> {
       headless: { type: 'string' },
       approve: { type: 'boolean' },
       diagnose: { type: 'boolean' },
+      interactive: { type: 'boolean' },
     },
     strict: true,
   });
@@ -38,7 +39,8 @@ async function main(): Promise<void> {
   if (!values.application) {
     throw new Error(
       'Usage: npm run gap:generate -- --application=<id> [--environment=qa] [--url=<baseUrl>] ' +
-        '[--storage-state=<path>] [--requirement="..."] [--requirement-file=<path>] [--module=<id>] [--approve]',
+        '[--storage-state=<path>] [--requirement="..."] [--requirement-file=<path>] [--module=<id>] ' +
+        '[--approve] [--diagnose] [--interactive]',
     );
   }
 
@@ -73,7 +75,14 @@ async function main(): Promise<void> {
     headless: values.headless !== 'false',
     resolveAmbiguity: resolveAmbiguityInteractively(readLine),
     resolveMissingValue: resolveMissingValueInteractively(readLine),
-    diagnose: Boolean(values.diagnose),
+    // Normal automation NEVER prompts to choose a locator — the default
+    // here is false. `--interactive` (or GAP_DEBUG=true, for convenience
+    // while diagnosing a mapping locally) is the one explicit, opt-in
+    // debug/developer escape hatch the product requirement allows; every
+    // other caller (gap:test, the web UI, gap.ts's own NL flow) stays
+    // non-interactive by not setting this.
+    interactiveResolution: Boolean(values.interactive) || process.env.GAP_DEBUG === 'true',
+    diagnose: Boolean(values.diagnose) || process.env.GAP_DEBUG === 'true',
   });
 
   if (outcome.diagnostics) {
